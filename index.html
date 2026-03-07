@@ -1842,13 +1842,13 @@
     </script>
     
    <script>
+    // הגדרת גרסה - בכל פעם שאתה עושה שינוי קריטי, פשוט תשנה את המספר כאן (למשל ל-7)
+    const APP_VERSION = '6.1'; 
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            // שינינו את הגרסה ל-v6 - זה יגרום לדפדפן להבין שיש עדכון
-            const CACHE_NAME = 'master-os-v6'; 
-            
             const swCode = `
-                const CACHE_NAME = '${CACHE_NAME}';
+                const CACHE_NAME = 'master-os-cache-v' + '${APP_VERSION}';
                 const ASSETS = [
                     location.pathname,
                     'https://unpkg.com/react@18/umd/react.production.min.js',
@@ -1859,57 +1859,49 @@
                 ];
 
                 self.addEventListener('install', event => {
+                    self.skipWaiting();
                     event.waitUntil(
-                        caches.open(CACHE_NAME).then(cache => {
-                            console.log('Caching assets');
-                            return cache.addAll(ASSETS);
-                        })
+                        caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
                     );
-                    self.skipWaiting(); // גורם ל-SW החדש להיכנס לתוקף מיד
                 });
 
                 self.addEventListener('activate', event => {
-                    // מנגנון ניקוי: מוחק גרסאות קודמות של ה-Cache
                     event.waitUntil(
-                        caches.keys().then(keys => {
-                            return Promise.all(
-                                keys.filter(key => key !== CACHE_NAME)
-                                    .map(key => caches.delete(key))
-                            );
-                        })
+                        caches.keys().then(keys => Promise.all(
+                            keys.map(key => {
+                                if (key !== CACHE_NAME) return caches.delete(key);
+                            })
+                        ))
                     );
                     return self.clients.claim();
                 });
 
                 self.addEventListener('fetch', event => {
+                    // אסטרטגיה: קודם רשת, אם נכשל - זיכרון (הכי בטוח לעדכונים)
                     event.respondWith(
-                        caches.match(event.request).then(response => {
-                            // אסטרטגיה: קודם מהרשת, ואם אין רשת - מהזיכרון
-                            return fetch(event.request).catch(() => response);
-                        })
+                        fetch(event.request).catch(() => caches.match(event.request))
                     );
                 });
             `;
 
             const blob = new Blob([swCode], { type: 'application/javascript' });
-            const swUrl = URL.createObjectURL(blob);
-            
+            // כאן הקסם: הוספת ?v= לכתובת גורמת לדפדפן להוריד את הסקריפט מחדש
+            const swUrl = URL.createObjectURL(blob) + '?v=' + APP_VERSION;
+
             navigator.serviceWorker.register(swUrl).then(reg => {
-                console.log('ServiceWorker updated to ' + CACHE_NAME);
+                console.log('SW Registered. Version:', APP_VERSION);
                 
-                // בדיקה אם יש עדכון מחכה
+                // אם נמצאה גרסה חדשה בזמן שהאפליקציה פתוחה
                 reg.onupdatefound = () => {
-                    const installingWorker = reg.installing;
-                    installingWorker.onstatechange = () => {
-                        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // אם מצאנו עדכון, נבקש מהמשתמש לרענן
-                            if(confirm("גרסה חדשה של המערכת זמינה! לרענן כעת?")) {
-                                window.location.reload();
-                            }
+                    const newWorker = reg.installing;
+                    newWorker.onstatechange = () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            alert("נמצא עדכון גרסה! המערכת תתרענן כעת.");
+                            window.location.reload();
                         }
                     };
                 };
-            }).catch(err => console.log('SW registration failed:', err));
+            });
         });
     }
 </script>
