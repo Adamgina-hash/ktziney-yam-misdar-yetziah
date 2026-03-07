@@ -433,7 +433,7 @@
             const rotateKmz = () => {
                 if (!confirm("להחליף את קוד הק.מ.ז עכשיו?")) return;
                 const updates = {}; Object.entries(accessCodes || {}).forEach(([oldCode, data]) => { let rType = typeof data === 'object' ? data.type : 'kadar'; if (rType === 'kmz') updates[oldCode] = null; });
-                const newCode = generateRandomCode(); updates[newCode] = { name: 'מרפאה', type: 'kmz' }; database.ref('access_codes').update(updates); alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
+                const newCode = generateRandomCode(); updates[newCode] = { name: 'ק.מ.ז', type: 'kmz' }; database.ref('access_codes').update(updates); alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
             };
 
             const wipeCloudData = async () => {
@@ -1964,4 +1964,5 @@
     </script>
 </body>
 </html>
+
 
