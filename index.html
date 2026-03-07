@@ -170,11 +170,23 @@
         );
 
         // שיפור משמעותי לברקוד - רזולוציה קלה יותר לסריקה ודחיסת נתונים אגרסיבית
+        // יצירת תמונת Base64 של QR קוד - מותאם אישית לקריאות של 100% בסורקים ומצלמות
         const generateQR = (text) => { 
             try { 
-                const qr = new QRious({ value: text, size: 800, level: 'L' }); // Level L = פחות צפוף ויותר קריא למצלמות
-                return qr.toDataURL(); 
-            } catch (e) { return ""; } 
+                const qr = new QRious({ 
+                    value: text, 
+                    size: 512,             // גודל מותאם (חזקה של 2 מונעת טשטוש במסכים)
+                    level: 'M',            // רמת M - מעולה נגד השתקפויות אור במסך
+                    padding: 30,           // קריטי! שוליים לבנים מובנים בתמונה (Quiet Zone) כדי שהסורק ינעל מיד
+                    background: '#ffffff', // רקע לבן מוחלט
+                    foreground: '#000000'  // קידוד שחור מוחלט לקונטרסט מקסימלי
+                }); 
+                // החזרה של מחרוזת Base64 בפורמט PNG יציב
+                return qr.toDataURL('image/png'); 
+            } catch (e) { 
+                console.error("QR Generation Error:", e);
+                return ""; 
+            } 
         };
 
         const compressReportForQR = (payload) => {
