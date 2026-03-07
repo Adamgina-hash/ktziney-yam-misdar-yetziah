@@ -1127,16 +1127,16 @@
                         
                         <div className="official-print-wrapper shadow-2xl print:shadow-none">
                             <div className="official-header">
-                                <div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">דוח ביקורת מגורים וסדר כללי</h2></div>
+                                <div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">דוח ביקורת מגורים - מסדר מעונות</h2></div>
                                 <div className="header-left"><div className="meta-text">תאריך: <span dir="ltr">{new Date().toLocaleDateString('he-IL')}</span></div></div>
                             </div>
                             <div className="table-container">
                                 <table className="official-table mt-4">
-                                    <thead><tr><th style={{width:'20%'}}>מספר חדר</th><th>הערות / ליקויים שנמצאו בביקורת</th></tr></thead>
+                                    <thead><tr><th style={{width:'20%'}}>מספר חדר</th><th>הערות שנמצאו בביקורת</th></tr></thead>
                                     <tbody>
                                         {reports.map((r, i) => { 
                                             const badChecks = Object.keys(r.checks).filter(k => r.checks[k]); 
-                                            return <tr key={i}><td style={{fontWeight:'900', fontSize:'16pt'}}>{r.room}</td><td style={{color: badChecks.length>0?'#dc2626':'#059669', fontWeight:'700', textAlign: 'right', paddingRight: '10px !important'}}>{badChecks.length > 0 ? "נמצאו ליקויים: " + badChecks.join(", ") : "✓ חדר תקין לחלוטין - אין ליקויים"}</td></tr>; 
+                                            return <tr key={i}><td style={{fontWeight:'900', fontSize:'16pt'}}>{r.room}</td><td style={{color: badChecks.length>0?'#dc2626':'#059669', fontWeight:'700', textAlign: 'right', paddingRight: '10px !important'}}>{badChecks.length > 0 ? "נמצאו ביקורות: " + badChecks.join(", ") : "✓ חדר מצטיין  -  "}</td></tr>; 
                                         })}
                                     </tbody>
                                 </table>
@@ -1964,3 +1964,4 @@
     </script>
 </body>
 </html>
+
