@@ -17,6 +17,7 @@
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -182,7 +183,6 @@
                 _s: payload.signerName || "",
                 _ur: payload.userRole || "",
                 _ts: payload.timestamp,
-                // שימו לב: בברקוד אנחנו לא מצפינים כי הוא נשמר אופליין בלבד והצפנה מנפחת אותו מדי לסריקה
                 _r: payload.rows ? payload.rows.map(r => [decrypt(r.name) || r.id, r.class || "", r.isPresent ? 1 : 0, decrypt(r.note) || ""]) : []
             });
         };
@@ -270,7 +270,6 @@
 
         const ReportViewerModal = ({ report, onClose }) => {
             if (!report) return null;
-            // הוספנו בדיקה כדי לא לזרוק שגיאה אם ה-timestamp חסר
             const dateStr = report.timestamp ? new Date(report.timestamp).toLocaleDateString('he-IL') : '';
             const timeStr = report.timestamp ? new Date(report.timestamp).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : '';
             
@@ -378,9 +377,14 @@
             );
         };
 
-        const LoginView = ({ isEmergency, onLoginAttempt }) => {
+        const LoginView = ({ isEmergency, onLoginAttempt, onEmailLoginAttempt }) => {
             const [inputCode, setInputCode] = useState("");
+            const [isAuthMode, setIsAuthMode] = useState(false);
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+
             const handleLoginClick = () => { onLoginAttempt(inputCode); setInputCode(""); };
+            const handleEmailClick = () => { onEmailLoginAttempt(email, password); };
 
             return (
                 <div className={`flex flex-col items-center justify-center min-h-screen p-6 no-print ${isEmergency ? 'emergency-bg' : 'bg-[#0f172a]'}`}>
@@ -388,10 +392,21 @@
                     <h1 className="text-4xl font-black mb-2 text-white text-center">קציני ים עכו</h1>
                     <h2 className="text-slate-400 font-bold mb-8">בית הספר הימי לפיקוד ומנהיגות</h2>
                     {isEmergency && <div className="bg-red-600 text-white font-black px-6 py-3 rounded-xl mb-6 animate-pulse text-xl shadow-[0_0_20px_rgba(220,38,38,0.8)]">🚨 מצב חירום מופעל 🚨</div>}
-                    <div className="w-full max-w-xs space-y-4">
-                        <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
-                        <button onClick={handleLoginClick} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
-                    </div>
+                    
+                    {!isAuthMode ? (
+                        <div className="w-full max-w-xs space-y-4">
+                            <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
+                            <button onClick={handleLoginClick} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
+                            <button onClick={() => setIsAuthMode(true)} className="w-full text-slate-400 font-bold text-sm mt-4 hover:text-white transition underline">כניסת סגל מורחב (אימייל / Auth)</button>
+                        </div>
+                    ) : (
+                        <div className="w-full max-w-xs space-y-4">
+                            <input type="email" placeholder="אימייל מורשה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center text-lg font-bold outline-none focus:border-emerald-400" value={email} onChange={e => setEmail(e.target.value)} />
+                            <input type="password" placeholder="סיסמה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center text-lg font-bold outline-none focus:border-emerald-400" value={password} onChange={e => setPassword(e.target.value)} />
+                            <button onClick={handleEmailClick} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-lg shadow-lg transition">התחברות מאובטחת</button>
+                            <button onClick={() => setIsAuthMode(false)} className="w-full text-slate-400 font-bold text-sm mt-4 hover:text-white transition underline">חזור לכניסה רגילה עם קוד</button>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -711,14 +726,13 @@
 
                 const signatureBase64 = canvasRef.current ? canvasRef.current.toDataURL("image/png") : null;
 
-                // יצירת אובייקט עם הצפנה (למעט השדות של שמות ומזהים כלליים שישמשו את המערכת לחיפוש מהיר)
                 const payload = { 
                     reportId: generatedReportId, 
                     author: finalAuthor,
                     signerName: encrypt(signerName), // הוצפן
                     userRole: userRole, 
                     type: title, 
-                    timestamp: firebase.database.ServerValue.TIMESTAMP, // זמן שרת!
+                    timestamp: firebase.database.ServerValue.TIMESTAMP, 
                     totalStudents: classStudents.length, 
                     totalPresent: totalPresent, 
                     rows: finalRows.map(r => ({...r, name: encrypt(r.name), note: encrypt(r.note)})), // הוצפן
@@ -727,10 +741,7 @@
                 
                 try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch (e) {}
                 
-                // לברקוד נשלח את הגרסה הגלויה (כיוון שהברקוד דורש מחרוזת קצרה ככל האפשר והצפנה מנפחת אותו)
                 const unencryptedPayloadForQR = { ...payload, signerName: signerName, rows: finalRows };
-                
-                // לתצוגת ה-PDF המיידית נשתמש גם בגרסה הגלויה (כדי להציג ישר)
                 const reportForDisplay = { ...unencryptedPayloadForQR, timestamp: new Date().getTime(), signature: signatureBase64 };
 
                 setSubmittedReport(reportForDisplay);
@@ -999,13 +1010,11 @@
                             <button onClick={() => {
                                 if (!editingStudent && (!formData.firstName || !formData.lastName || !formData.className)) return alert("יש למלא לפחות שם, משפחה וכיתה.");
                                 if(editingStudent) { 
-                                    // הצפנת שמות בשמירה
                                     const updated = {...editingStudent, firstName: encrypt(editingStudent.firstName), lastName: encrypt(editingStudent.lastName)};
                                     database.ref(`students/${editingStudent.id}`).update(updated); 
                                     setEditingStudent(null); 
                                 }
                                 else { 
-                                    // הצפנת שמות ביצירה
                                     database.ref('students').push({...formData, firstName: encrypt(formData.firstName), lastName: encrypt(formData.lastName), isDone: false, status: 'ממתין'}); 
                                     setFormData({...formData, firstName: '', lastName: ''}); 
                                 }
@@ -1451,7 +1460,6 @@
                     await database.ref(`reports_cloud/${payload.reportId}`).set(payload); 
                 } catch(e) {} 
                 
-                // הברקוד המקומי יכיל מידע לא מוצפן עקב מגבלת גודל של הברקוד
                 const unencryptedPayload = { ...payload, signerName: signerName, rows: patients };
                 setQrPayload(compressReportForQR(unencryptedPayload)); 
                 
@@ -1722,8 +1730,8 @@
                     const cleanList = Object.keys(data).map(k => ({ 
                         ...data[k], 
                         id: k, 
-                        firstName: decrypt(data[k].firstName), // פענוח בקריאה
-                        lastName: decrypt(data[k].lastName), // פענוח בקריאה
+                        firstName: decrypt(data[k].firstName),
+                        lastName: decrypt(data[k].lastName),
                         status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') 
                     }));
                     setStudents(cleanList);
@@ -1738,7 +1746,6 @@
                 const alertsRef = database.ref('system/alerts');
                 alertsRef.on('value', snap => {
                     const data = snap.val() || {}; 
-                    // פענוח הדיווחים במערכת החירום
                     const decryptedAlerts = {};
                     Object.keys(data).forEach(k => {
                         decryptedAlerts[k] = { ...data[k], text: decrypt(data[k].text) };
@@ -1770,7 +1777,6 @@
                 reportsRef.on('value', snap => {
                     const data = snap.val();
                     if(data) {
-                        // פענוח אוטומטי של כל דוח שמגיע מהענן
                         const decryptedReports = Object.values(data).map(r => ({
                             ...r,
                             signerName: decrypt(r.signerName),
@@ -1786,7 +1792,13 @@
                 return () => { studentsRef.off(); codesRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
             }, [userType]);
 
-            const handleLogout = () => { setUserRole(""); setUserType(""); setUserCode(""); setView("login"); };
+            const handleLogout = () => { 
+                // התנתקות גם משרתי ההזדהות של פיירבייס אם היה מחובר משם
+                if(firebase.auth) {
+                    firebase.auth().signOut().catch(()=>{});
+                }
+                setUserRole(""); setUserType(""); setUserCode(""); setView("login"); 
+            };
 
             const setGodRole = (rType, rName) => {
                 setUserRole(`${rName} (God Mode)`);
@@ -1830,10 +1842,28 @@
                 } else { alert("קוד הגישה שגוי או אינו קיים במערכת."); }
             };
 
+            // הוספת פונקציית התחברות עם פיירבייס אותנטיקציה
+            const handleEmailLoginAttempt = async (email, password) => {
+                try {
+                    await firebase.auth().signInWithEmailAndPassword(email, password);
+                    // אם ההתחברות הצליחה, ניתן לו הרשאות אדמין (ניהול)
+                    setUserRole("סגל בכיר (התחברות מאובטחת)");
+                    setUserType("admin");
+                    setUserCode("SECURE_AUTH_USER");
+                    setView("admin");
+                } catch (error) {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                        alert("שגיאה: אימייל או סיסמה אינם נכונים.");
+                    } else {
+                        alert("שגיאת התחברות: " + error.message);
+                    }
+                }
+            };
+
             const renderCurrentView = () => {
                 try {
                     switch(view) {
-                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
+                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} />;
                         case "admin": return <AdminView accessCodes={accessCodes} students={students} handleLogout={handleLogout} />;
                         case "god_mode": return <GodModeView setGodRole={setGodRole} handleLogout={handleLogout} />;
                         case "madrich_dash": return <MadrichView userRole={userRole} userCode={userCode} accessCodes={accessCodes} students={students} cloudReports={cloudReports} setView={setView} handleLogout={handleLogout} />;
@@ -1851,7 +1881,7 @@
                         case "officer_dash": return <OfficerView userRole={userRole} accessCodes={accessCodes} offlineReports={offlineReports} setOfflineReports={setOfflineReports} cloudReports={cloudReports} handleLogout={handleLogout} />;
                         case "kmz_dash": return <KmzView userRole={userRole} handleLogout={handleLogout} />;
                         case "management_dash": return <ManagementView userRole={userRole} students={students} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
-                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
+                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} />;
                     }
                 } catch (error) {
                     console.error(error);
@@ -1872,7 +1902,7 @@
     </script>
     
     <script>
-        const APP_VERSION = '6.1'; // עדכון גרסה עתידי - שנה כאן!
+        const APP_VERSION = '6.1'; 
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -1913,7 +1943,6 @@
                 `;
 
                 const blob = new Blob([swCode], { type: 'application/javascript' });
-                // הוספת ה-APP_VERSION לכתובת כופה על הדפדפן להוריד מחדש את הסקריפט
                 const swUrl = URL.createObjectURL(blob) + '?v=' + APP_VERSION;
 
                 navigator.serviceWorker.register(swUrl).then(reg => {
