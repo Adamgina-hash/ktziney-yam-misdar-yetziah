@@ -20,6 +20,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
     
@@ -67,80 +69,34 @@
         .signature-line img { max-height: 55px; max-width: 100%; object-fit: contain; }
         .signer-role { font-size: 14px; font-weight: 700; color: #000 !important; }
 
-        /* ------------------------------------------------------------------------------------------------
-           חוק מרפי: נעילת הדפסה לדף יחיד בלבד (Single Page PDF Lock)
-           ------------------------------------------------------------------------------------------------ */
         @media print {
             @page { size: A4 portrait; margin: 5mm !important; }
-            
-            /* מונע כל אפשרות פיזית של הדפדפן להוסיף דף שני */
             body, html, #root { 
-                height: 100vh !important; 
-                max-height: 100vh !important; 
-                margin: 0 !important; 
-                padding: 0 !important; 
-                overflow: hidden !important; 
-                display: block !important;
-                box-sizing: border-box !important;
+                height: 100vh !important; max-height: 100vh !important; margin: 0 !important; padding: 0 !important; 
+                overflow: hidden !important; display: block !important; box-sizing: border-box !important;
             }
-            
             .no-print { display: none !important; }
             .no-print-bg { background: white !important; }
-            
-            /* תופס בדיוק 100% מהמסך הנותר להדפסה */
             .print-modal-fix { 
-                position: absolute !important; 
-                top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
-                width: 100% !important; 
-                height: 100vh !important; 
-                background: white !important; 
-                padding: 0 !important; 
-                z-index: 999999 !important; 
-                overflow: hidden !important;
+                position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+                width: 100% !important; height: 100vh !important; background: white !important; padding: 0 !important; 
+                z-index: 999999 !important; overflow: hidden !important;
             }
-            
             .official-print-wrapper { 
-                display: flex !important; 
-                flex-direction: column !important; 
-                width: 100% !important; 
-                height: 100% !important; 
-                max-height: 100vh !important;
-                padding: 0 !important; 
-                margin: 0 !important; 
-                box-shadow: none !important; 
+                display: flex !important; flex-direction: column !important; width: 100% !important; height: 100% !important; 
+                max-height: 100vh !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; 
                 page-break-inside: avoid !important;
             }
-            
             .official-print-wrapper * { color: black !important; border-color: black !important; }
-            
             .official-header { flex-shrink: 0 !important; margin-bottom: 5px !important; padding-bottom: 5px !important; }
             .official-footer { flex-shrink: 0 !important; margin-top: auto !important; padding-top: 5px !important; border-top: 2px solid #000 !important; }
-            
-            /* טבלה שמתכווצת ונמתחת כדי למלא בדיוק את הרווח האמצעי */
-            .table-container { 
-                flex-grow: 1 !important; 
-                min-height: 0 !important; 
-                display: flex !important;
-                flex-direction: column !important;
-                justify-content: stretch !important;
-            }
-            
-            .official-table { 
-                width: 100% !important; 
-                height: 100% !important; 
-            }
-            
-            /* גודל הטקסט מתאים את עצמו (Clamp) כדי לא לחרוג אף פעם מגבולות הדף */
+            .table-container { flex-grow: 1 !important; min-height: 0 !important; display: flex !important; flex-direction: column !important; justify-content: stretch !important; }
+            .official-table { width: 100% !important; height: 100% !important; }
             .official-table th { font-size: 11pt !important; padding: 2px !important; height: 1px !important; }
-            .official-table td { 
-                font-size: clamp(8pt, 1.8vh, 12pt) !important; 
-                padding: 1px 2px !important; 
-            }
-            
+            .official-table td { font-size: clamp(8pt, 1.8vh, 12pt) !important; padding: 1px 2px !important; }
             .school-name { font-size: 16pt !important; margin: 0 !important;}
             .report-title { font-size: 14pt !important; margin: 0 !important;}
             .meta-text { font-size: 10pt !important; margin: 0 !important;}
-            
             .summary-box { font-size: 12pt !important; }
             .summary-box b { font-size: 14pt !important; }
             .signature-box { width: auto !important; margin-top: 5px !important; }
@@ -166,6 +122,25 @@
         const firebaseConfig = { apiKey: "AIzaSyCbUcZeBHsZDy3AvYLYe8OZ4nGQ3v3_E-U", databaseURL: "https://misdar-acco-default-rtdb.europe-west1.firebasedatabase.app" };
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+
+        // --- מנגנון הצפנה חדש ---
+        const SECRET_KEY = "MasterOS-Akko-Secure-Key-2026"; // מפתח הצפנה סודי
+        
+        const encrypt = (text) => {
+            if (!text) return "";
+            try { return CryptoJS.AES.encrypt(text.toString(), SECRET_KEY).toString(); } 
+            catch(e) { return text; }
+        };
+        
+        const decrypt = (cipherText) => {
+            if (!cipherText) return "";
+            if (!cipherText.startsWith('U2F')) return cipherText; // אם זה לא נראה כמו מוצפן, נחזיר כמו שהוא
+            try {
+                const bytes = CryptoJS.AES.decrypt(cipherText, SECRET_KEY);
+                return bytes.toString(CryptoJS.enc.Utf8) || cipherText;
+            } catch (e) { return cipherText; }
+        };
+        // -----------------------
 
         const MajorsList = ["מכונה", "חובל משמרת", "אלקטרוניקה", "לוגיסטיקת נמלים"];
         const ROLE_TYPES = { kadar: 'קד"ר', madrich: 'מדריך', ab_bayit: 'אב בית', kabat: 'קב"ט', firefighter: 'כבאי', medic: 'מע"ר', scanner: 'סורק', safety_comm: 'מפקד ביטחון בטיחות', officer: 'קצין תורן', kmz: 'ק.מ.ז', cadet_comm: 'מפקד קדטים', deputy_comm: 'סגן מפקד קדטים', village_mgr: 'מנהל הכפר' };
@@ -207,7 +182,8 @@
                 _s: payload.signerName || "",
                 _ur: payload.userRole || "",
                 _ts: payload.timestamp,
-                _r: payload.rows ? payload.rows.map(r => [r.name || r.id, r.class || "", r.isPresent ? 1 : 0, r.note || ""]) : []
+                // שימו לב: בברקוד אנחנו לא מצפינים כי הוא נשמר אופליין בלבד והצפנה מנפחת אותו מדי לסריקה
+                _r: payload.rows ? payload.rows.map(r => [decrypt(r.name) || r.id, r.class || "", r.isPresent ? 1 : 0, decrypt(r.note) || ""]) : []
             });
         };
 
@@ -242,7 +218,12 @@
                 const ref = database.ref('system/comms').limitToLast(15);
                 ref.on('value', snap => {
                     const data = snap.val();
-                    if(data) setComms(Object.values(data).reverse());
+                    if(data) {
+                        const decryptedComms = Object.values(data).map(c => ({
+                            ...c, text: decrypt(c.text) // פענוח ההודעה בענן
+                        })).reverse();
+                        setComms(decryptedComms);
+                    }
                     else setComms([]);
                 });
                 return () => ref.off();
@@ -251,7 +232,7 @@
             const sendMsg = () => {
                 if(!msg.trim()) return;
                 database.ref('system/comms').push({
-                    text: msg,
+                    text: encrypt(msg), // הצפנת ההודעה
                     author: userRole,
                     time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'})
                 });
@@ -289,8 +270,9 @@
 
         const ReportViewerModal = ({ report, onClose }) => {
             if (!report) return null;
-            const dateStr = new Date(report.timestamp).toLocaleDateString('he-IL');
-            const timeStr = new Date(report.timestamp).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+            // הוספנו בדיקה כדי לא לזרוק שגיאה אם ה-timestamp חסר
+            const dateStr = report.timestamp ? new Date(report.timestamp).toLocaleDateString('he-IL') : '';
+            const timeStr = report.timestamp ? new Date(report.timestamp).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) : '';
             
             return (
                 <div className="fixed inset-0 bg-black/95 z-[9999] overflow-y-auto p-4 md:p-8 no-print-bg print-modal-fix">
@@ -311,7 +293,6 @@
                             מחלקה / כיתה: {report.author}
                         </div>
                         
-                        {/* עטיפת הטבלה בקונטיינר כדי להפעיל את גמישות העמוד (Flex) */}
                         <div className="table-container">
                             <table className="official-table">
                                 <thead>
@@ -726,27 +707,34 @@
                 
                 const finalAuthor = exactMatchStudents.length > 0 ? (extractedClass || userRole) : selectedClass;
                 const safeAuthor = finalAuthor.replace(/[\/\.#$\[\]]/g, '-');
-                const generatedReportId = `rep_${safeAuthor}_${title}`;
+                const generatedReportId = `rep_${safeAuthor}_${title}_${new Date().getTime()}`;
 
                 const signatureBase64 = canvasRef.current ? canvasRef.current.toDataURL("image/png") : null;
 
+                // יצירת אובייקט עם הצפנה (למעט השדות של שמות ומזהים כלליים שישמשו את המערכת לחיפוש מהיר)
                 const payload = { 
                     reportId: generatedReportId, 
                     author: finalAuthor,
-                    signerName: signerName, 
+                    signerName: encrypt(signerName), // הוצפן
                     userRole: userRole, 
                     type: title, 
-                    timestamp: new Date().getTime(), 
+                    timestamp: firebase.database.ServerValue.TIMESTAMP, // זמן שרת!
                     totalStudents: classStudents.length, 
                     totalPresent: totalPresent, 
-                    rows: finalRows,
-                    signature: signatureBase64
+                    rows: finalRows.map(r => ({...r, name: encrypt(r.name), note: encrypt(r.note)})), // הוצפן
+                    signature: encrypt(signatureBase64) // הוצפן
                 };
                 
                 try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch (e) {}
                 
-                setSubmittedReport(payload);
-                setQrPayload(compressReportForQR(payload)); 
+                // לברקוד נשלח את הגרסה הגלויה (כיוון שהברקוד דורש מחרוזת קצרה ככל האפשר והצפנה מנפחת אותו)
+                const unencryptedPayloadForQR = { ...payload, signerName: signerName, rows: finalRows };
+                
+                // לתצוגת ה-PDF המיידית נשתמש גם בגרסה הגלויה (כדי להציג ישר)
+                const reportForDisplay = { ...unencryptedPayloadForQR, timestamp: new Date().getTime(), signature: signatureBase64 };
+
+                setSubmittedReport(reportForDisplay);
+                setQrPayload(compressReportForQR(unencryptedPayloadForQR)); 
                 setShowReportQR(true); 
                 setIsSubmitting(false);
             };
@@ -913,7 +901,7 @@
                 const payload = {
                     reportId: reportId,
                     author: userRole,
-                    signerName: signerName,
+                    signerName: signerName, // לא מוצפן כאן כי זה רק ברקוד מקומי
                     userRole: userRole,
                     type: pdfTitle,
                     timestamp: new Date().getTime(),
@@ -1010,8 +998,17 @@
                             </div>
                             <button onClick={() => {
                                 if (!editingStudent && (!formData.firstName || !formData.lastName || !formData.className)) return alert("יש למלא לפחות שם, משפחה וכיתה.");
-                                if(editingStudent) { database.ref(`students/${editingStudent.id}`).update(editingStudent); setEditingStudent(null); }
-                                else { database.ref('students').push({...formData, isDone: false, status: 'ממתין'}); setFormData({...formData, firstName: '', lastName: ''}); }
+                                if(editingStudent) { 
+                                    // הצפנת שמות בשמירה
+                                    const updated = {...editingStudent, firstName: encrypt(editingStudent.firstName), lastName: encrypt(editingStudent.lastName)};
+                                    database.ref(`students/${editingStudent.id}`).update(updated); 
+                                    setEditingStudent(null); 
+                                }
+                                else { 
+                                    // הצפנת שמות ביצירה
+                                    database.ref('students').push({...formData, firstName: encrypt(formData.firstName), lastName: encrypt(formData.lastName), isDone: false, status: 'ממתין'}); 
+                                    setFormData({...formData, firstName: '', lastName: ''}); 
+                                }
                             }} className="w-full btn-gold py-4 rounded-xl font-black shadow-lg hover:shadow-xl transition">
                                 {editingStudent ? 'שמור שינויים' : 'הוסף לרשימה'}
                             </button>
@@ -1440,21 +1437,24 @@
                 const signatureBase64 = canvasRef.current ? canvasRef.current.toDataURL("image/png") : null;
                 
                 const payload = { 
-                    reportId: 'rep_מרפאה_kmz_daily',
+                    reportId: `rep_מרפאה_kmz_daily_${new Date().getTime()}`,
                     author: userRole, 
-                    signerName: signerName,
+                    signerName: encrypt(signerName), // הוצפן
                     userRole: userRole,
                     type: 'kmz', 
-                    timestamp: new Date().getTime(), 
-                    rows: patients,
-                    signature: signatureBase64
+                    timestamp: firebase.database.ServerValue.TIMESTAMP, // זמן שרת מאובטח
+                    rows: patients.map(p => ({...p, name: encrypt(p.name)})), // הוצפן
+                    signature: encrypt(signatureBase64) // הוצפן
                 }; 
                 
                 try { 
                     await database.ref(`reports_cloud/${payload.reportId}`).set(payload); 
                 } catch(e) {} 
                 
-                setQrPayload(compressReportForQR(payload)); 
+                // הברקוד המקומי יכיל מידע לא מוצפן עקב מגבלת גודל של הברקוד
+                const unencryptedPayload = { ...payload, signerName: signerName, rows: patients };
+                setQrPayload(compressReportForQR(unencryptedPayload)); 
+                
                 setShowQR(true); 
                 setPatients([]); 
                 if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150);
@@ -1531,7 +1531,17 @@
 
         const ScannerView = ({ userRole, offlineReports, setOfflineReports, handleLogout }) => {
             const [txt, setTxt] = useState(""); const [showQRS, setShowQRS] = useState(false);
-            const sendAlert = () => { if(!txt) return; database.ref('system/alerts').push({ text: txt, time: new Date().toLocaleTimeString('he-IL'), active: true, author: userRole }); setTxt(""); alert("ההודעה שודרה."); };
+            const sendAlert = () => { 
+                if(!txt) return; 
+                database.ref('system/alerts').push({ 
+                    text: encrypt(txt), // הצפנת ההודעה
+                    time: new Date().toLocaleTimeString('he-IL'), 
+                    active: true, 
+                    author: userRole 
+                }); 
+                setTxt(""); 
+                alert("ההודעה שודרה."); 
+            };
 
             return (
                 <div className="min-h-screen pb-20">
@@ -1709,7 +1719,13 @@
                 studentsRef.on('value', snap => {
                     const data = snap.val();
                     if (!data) { setStudents([]); return; }
-                    const cleanList = Object.keys(data).map(k => ({ ...data[k], id: k, status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') }));
+                    const cleanList = Object.keys(data).map(k => ({ 
+                        ...data[k], 
+                        id: k, 
+                        firstName: decrypt(data[k].firstName), // פענוח בקריאה
+                        lastName: decrypt(data[k].lastName), // פענוח בקריאה
+                        status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') 
+                    }));
                     setStudents(cleanList);
                 });
                 
@@ -1721,9 +1737,16 @@
                 
                 const alertsRef = database.ref('system/alerts');
                 alertsRef.on('value', snap => {
-                    const data = snap.val() || {}; setSystemAlerts(data);
+                    const data = snap.val() || {}; 
+                    // פענוח הדיווחים במערכת החירום
+                    const decryptedAlerts = {};
+                    Object.keys(data).forEach(k => {
+                        decryptedAlerts[k] = { ...data[k], text: decrypt(data[k].text) };
+                    });
+                    setSystemAlerts(decryptedAlerts);
+                    
                     if (['kabat', 'safety_comm'].includes(userType)) {
-                        const newAlerts = Object.values(data).filter(a => a.active);
+                        const newAlerts = Object.values(decryptedAlerts).filter(a => a.active);
                         if (newAlerts.length > 0) {
                             setPopupMsg(`📍 סריקה: ${newAlerts[newAlerts.length - 1].text}`);
                             setTimeout(() => setPopupMsg(""), 5000);
@@ -1738,7 +1761,7 @@
                     if (!initialCommsLoaded) return;
                     const data = snap.val();
                     if (EMERGENCY_ROLES.includes(userType)) {
-                        setPopupMsg(`🔴 ${data.author}: ${data.text}`);
+                        setPopupMsg(`🔴 ${data.author}: ${decrypt(data.text)}`);
                         setTimeout(() => setPopupMsg(""), 6000);
                     }
                 });
@@ -1747,7 +1770,14 @@
                 reportsRef.on('value', snap => {
                     const data = snap.val();
                     if(data) {
-                        setCloudReports(Object.values(data).sort((a,b) => b.timestamp - a.timestamp));
+                        // פענוח אוטומטי של כל דוח שמגיע מהענן
+                        const decryptedReports = Object.values(data).map(r => ({
+                            ...r,
+                            signerName: decrypt(r.signerName),
+                            signature: decrypt(r.signature),
+                            rows: r.rows ? r.rows.map(row => ({...row, name: decrypt(row.name), note: decrypt(row.note)})) : []
+                        })).sort((a,b) => b.timestamp - a.timestamp);
+                        setCloudReports(decryptedReports);
                     } else {
                         setCloudReports([]);
                     }
@@ -1841,71 +1871,67 @@
         root.render(<App />);
     </script>
     
-   <script>
-    // הגדרת גרסה - בכל פעם שאתה עושה שינוי קריטי, פשוט תשנה את המספר כאן (למשל ל-7)
-    const APP_VERSION = '6.1'; 
+    <script>
+        const APP_VERSION = '6.1'; // עדכון גרסה עתידי - שנה כאן!
 
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            const swCode = `
-                const CACHE_NAME = 'master-os-cache-v' + '${APP_VERSION}';
-                const ASSETS = [
-                    location.pathname,
-                    'https://unpkg.com/react@18/umd/react.production.min.js',
-                    'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-                    'https://cdn.tailwindcss.com',
-                    'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
-                    'https://unpkg.com/html5-qrcode'
-                ];
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    const CACHE_NAME = 'master-os-cache-v' + '${APP_VERSION}';
+                    const ASSETS = [
+                        location.pathname,
+                        'https://unpkg.com/react@18/umd/react.production.min.js',
+                        'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+                        'https://cdn.tailwindcss.com',
+                        'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
+                        'https://unpkg.com/html5-qrcode'
+                    ];
 
-                self.addEventListener('install', event => {
-                    self.skipWaiting();
-                    event.waitUntil(
-                        caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
-                    );
-                });
+                    self.addEventListener('install', event => {
+                        self.skipWaiting();
+                        event.waitUntil(
+                            caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+                        );
+                    });
 
-                self.addEventListener('activate', event => {
-                    event.waitUntil(
-                        caches.keys().then(keys => Promise.all(
-                            keys.map(key => {
-                                if (key !== CACHE_NAME) return caches.delete(key);
-                            })
-                        ))
-                    );
-                    return self.clients.claim();
-                });
+                    self.addEventListener('activate', event => {
+                        event.waitUntil(
+                            caches.keys().then(keys => Promise.all(
+                                keys.map(key => {
+                                    if (key !== CACHE_NAME) return caches.delete(key);
+                                })
+                            ))
+                        );
+                        return self.clients.claim();
+                    });
 
-                self.addEventListener('fetch', event => {
-                    // אסטרטגיה: קודם רשת, אם נכשל - זיכרון (הכי בטוח לעדכונים)
-                    event.respondWith(
-                        fetch(event.request).catch(() => caches.match(event.request))
-                    );
-                });
-            `;
+                    self.addEventListener('fetch', event => {
+                        event.respondWith(
+                            fetch(event.request).catch(() => caches.match(event.request))
+                        );
+                    });
+                `;
 
-            const blob = new Blob([swCode], { type: 'application/javascript' });
-            // כאן הקסם: הוספת ?v= לכתובת גורמת לדפדפן להוריד את הסקריפט מחדש
-            const swUrl = URL.createObjectURL(blob) + '?v=' + APP_VERSION;
+                const blob = new Blob([swCode], { type: 'application/javascript' });
+                // הוספת ה-APP_VERSION לכתובת כופה על הדפדפן להוריד מחדש את הסקריפט
+                const swUrl = URL.createObjectURL(blob) + '?v=' + APP_VERSION;
 
-            navigator.serviceWorker.register(swUrl).then(reg => {
-                console.log('SW Registered. Version:', APP_VERSION);
-                
-                // אם נמצאה גרסה חדשה בזמן שהאפליקציה פתוחה
-                reg.onupdatefound = () => {
-                    const newWorker = reg.installing;
-                    newWorker.onstatechange = () => {
-                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            alert("נמצא עדכון גרסה! המערכת תתרענן כעת.");
-                            window.location.reload();
-                        }
+                navigator.serviceWorker.register(swUrl).then(reg => {
+                    console.log('SW Registered. Secure Version:', APP_VERSION);
+                    
+                    reg.onupdatefound = () => {
+                        const newWorker = reg.installing;
+                        newWorker.onstatechange = () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                if(confirm("עדכון אבטחה חדש זמין! לרענן את המערכת?")) {
+                                    window.location.reload();
+                                }
+                            }
+                        };
                     };
-                };
+                });
             });
-        });
-    }
-</script>
+        }
+    </script>
 </body>
-
 </html>
-
