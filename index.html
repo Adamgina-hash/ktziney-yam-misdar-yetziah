@@ -16,7 +16,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
@@ -74,6 +73,7 @@
         @media print {
             @page { size: A4 portrait; margin: 5mm !important; }
             
+            /* מונע כל אפשרות פיזית של הדפדפן להוסיף דף שני */
             body, html, #root { 
                 height: 100vh !important; 
                 max-height: 100vh !important; 
@@ -87,6 +87,7 @@
             .no-print { display: none !important; }
             .no-print-bg { background: white !important; }
             
+            /* תופס בדיוק 100% מהמסך הנותר להדפסה */
             .print-modal-fix { 
                 position: absolute !important; 
                 top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
@@ -115,6 +116,7 @@
             .official-header { flex-shrink: 0 !important; margin-bottom: 5px !important; padding-bottom: 5px !important; }
             .official-footer { flex-shrink: 0 !important; margin-top: auto !important; padding-top: 5px !important; border-top: 2px solid #000 !important; }
             
+            /* טבלה שמתכווצת ונמתחת כדי למלא בדיוק את הרווח האמצעי */
             .table-container { 
                 flex-grow: 1 !important; 
                 min-height: 0 !important; 
@@ -128,6 +130,7 @@
                 height: 100% !important; 
             }
             
+            /* גודל הטקסט מתאים את עצמו (Clamp) כדי לא לחרוג אף פעם מגבולות הדף */
             .official-table th { font-size: 11pt !important; padding: 2px !important; height: 1px !important; }
             .official-table td { 
                 font-size: clamp(8pt, 1.8vh, 12pt) !important; 
@@ -308,6 +311,7 @@
                             מחלקה / כיתה: {report.author}
                         </div>
                         
+                        {/* עטיפת הטבלה בקונטיינר כדי להפעיל את גמישות העמוד (Flex) */}
                         <div className="table-container">
                             <table className="official-table">
                                 <thead>
@@ -393,11 +397,9 @@
             );
         };
 
-        const LoginView = ({ isEmergency, onLoginAttempt, onAdminLogin }) => {
+        const LoginView = ({ isEmergency, onLoginAttempt }) => {
             const [inputCode, setInputCode] = useState("");
-            const [isAdminMode, setIsAdminMode] = useState(false);
-            const [email, setEmail] = useState("");
-            const [password, setPassword] = useState("");
+            const handleLoginClick = () => { onLoginAttempt(inputCode); setInputCode(""); };
 
             return (
                 <div className={`flex flex-col items-center justify-center min-h-screen p-6 no-print ${isEmergency ? 'emergency-bg' : 'bg-[#0f172a]'}`}>
@@ -405,21 +407,10 @@
                     <h1 className="text-4xl font-black mb-2 text-white text-center">קציני ים עכו</h1>
                     <h2 className="text-slate-400 font-bold mb-8">בית הספר הימי לפיקוד ומנהיגות</h2>
                     {isEmergency && <div className="bg-red-600 text-white font-black px-6 py-3 rounded-xl mb-6 animate-pulse text-xl shadow-[0_0_20px_rgba(220,38,38,0.8)]">🚨 מצב חירום מופעל 🚨</div>}
-                    
-                    {isAdminMode ? (
-                        <div className="w-full max-w-xs space-y-4">
-                            <input type="email" placeholder="אימייל מנהל מערכת" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-xl font-bold outline-none focus:border-amber-400 focus:bg-slate-800" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" />
-                            <input type="password" placeholder="סיסמה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-xl font-bold outline-none focus:border-amber-400 focus:bg-slate-800" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" />
-                            <button onClick={() => onAdminLogin(email, password)} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">התחבר כמנהל</button>
-                            <button onClick={() => setIsAdminMode(false)} className="text-slate-400 hover:text-white text-sm font-bold underline mt-4 block w-full text-center transition">חזור למערכת קודים וקד"רים</button>
-                        </div>
-                    ) : (
-                        <div className="w-full max-w-xs space-y-4">
-                            <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
-                            <button onClick={() => { onLoginAttempt(inputCode); setInputCode(""); }} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
-                            <button onClick={() => setIsAdminMode(true)} className="text-slate-500 hover:text-slate-300 text-sm font-bold mt-6 block w-full text-center transition">כניסת מנהל מערכת (Admin Auth)</button>
-                        </div>
-                    )}
+                    <div className="w-full max-w-xs space-y-4">
+                        <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
+                        <button onClick={handleLoginClick} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
+                    </div>
                 </div>
             );
         };
@@ -1809,23 +1800,10 @@
                 } else { alert("קוד הגישה שגוי או אינו קיים במערכת."); }
             };
 
-            // פונקציית התחברות חכמה עם אימייל וסיסמה למנהל הראשי
-            const handleAdminLogin = async (email, password) => {
-                try {
-                    await firebase.auth().signInWithEmailAndPassword(email, password);
-                    setUserRole("מנהל מערכת ראשי"); 
-                    setUserType("admin"); 
-                    setUserCode("ADMIN"); 
-                    setView("admin");
-                } catch (error) {
-                    alert("שגיאת התחברות: ייתכן שהאימייל או הסיסמה שגויים.\n\n" + error.message);
-                }
-            };
-
             const renderCurrentView = () => {
                 try {
                     switch(view) {
-                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onAdminLogin={handleAdminLogin} />;
+                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
                         case "admin": return <AdminView accessCodes={accessCodes} students={students} handleLogout={handleLogout} />;
                         case "god_mode": return <GodModeView setGodRole={setGodRole} handleLogout={handleLogout} />;
                         case "madrich_dash": return <MadrichView userRole={userRole} userCode={userCode} accessCodes={accessCodes} students={students} cloudReports={cloudReports} setView={setView} handleLogout={handleLogout} />;
@@ -1843,7 +1821,7 @@
                         case "officer_dash": return <OfficerView userRole={userRole} accessCodes={accessCodes} offlineReports={offlineReports} setOfflineReports={setOfflineReports} cloudReports={cloudReports} handleLogout={handleLogout} />;
                         case "kmz_dash": return <KmzView userRole={userRole} handleLogout={handleLogout} />;
                         case "management_dash": return <ManagementView userRole={userRole} students={students} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
-                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onAdminLogin={handleAdminLogin} />;
+                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
                     }
                 } catch (error) {
                     console.error(error);
@@ -1907,3 +1885,4 @@
 </body>
 
 </html>
+
