@@ -16,6 +16,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
@@ -38,6 +39,7 @@
         
         .signature-canvas { border: 2px dashed #94a3b8; border-radius: 12px; background: #ffffff !important; touch-action: none; cursor: crosshair; display: block; }
         
+        /* עיצוב לתצוגת מחשב/מסך (לפני הדפסה) */
         .official-print-wrapper {
             display: flex; flex-direction: column; width: 100%; max-width: 210mm;
             margin: 0 auto; background: white !important; padding: 10mm; box-sizing: border-box; 
@@ -66,6 +68,9 @@
         .signature-line img { max-height: 55px; max-width: 100%; object-fit: contain; }
         .signer-role { font-size: 14px; font-weight: 700; color: #000 !important; }
 
+        /* ------------------------------------------------------------------------------------------------
+           חוק מרפי: נעילת הדפסה לדף יחיד בלבד (Single Page PDF Lock)
+           ------------------------------------------------------------------------------------------------ */
         @media print {
             @page { size: A4 portrait; margin: 5mm !important; }
             
@@ -388,9 +393,11 @@
             );
         };
 
-        const LoginView = ({ isEmergency, onLoginAttempt }) => {
+        const LoginView = ({ isEmergency, onLoginAttempt, onAdminLogin }) => {
             const [inputCode, setInputCode] = useState("");
-            const handleLoginClick = () => { onLoginAttempt(inputCode); setInputCode(""); };
+            const [isAdminMode, setIsAdminMode] = useState(false);
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
 
             return (
                 <div className={`flex flex-col items-center justify-center min-h-screen p-6 no-print ${isEmergency ? 'emergency-bg' : 'bg-[#0f172a]'}`}>
@@ -398,10 +405,21 @@
                     <h1 className="text-4xl font-black mb-2 text-white text-center">קציני ים עכו</h1>
                     <h2 className="text-slate-400 font-bold mb-8">בית הספר הימי לפיקוד ומנהיגות</h2>
                     {isEmergency && <div className="bg-red-600 text-white font-black px-6 py-3 rounded-xl mb-6 animate-pulse text-xl shadow-[0_0_20px_rgba(220,38,38,0.8)]">🚨 מצב חירום מופעל 🚨</div>}
-                    <div className="w-full max-w-xs space-y-4">
-                        <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
-                        <button onClick={handleLoginClick} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
-                    </div>
+                    
+                    {isAdminMode ? (
+                        <div className="w-full max-w-xs space-y-4">
+                            <input type="email" placeholder="אימייל מנהל מערכת" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-xl font-bold outline-none focus:border-amber-400 focus:bg-slate-800" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" />
+                            <input type="password" placeholder="סיסמה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-xl font-bold outline-none focus:border-amber-400 focus:bg-slate-800" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" />
+                            <button onClick={() => onAdminLogin(email, password)} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">התחבר כמנהל</button>
+                            <button onClick={() => setIsAdminMode(false)} className="text-slate-400 hover:text-white text-sm font-bold underline mt-4 block w-full text-center transition">חזור למערכת קודים וקד"רים</button>
+                        </div>
+                    ) : (
+                        <div className="w-full max-w-xs space-y-4">
+                            <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
+                            <button onClick={() => { onLoginAttempt(inputCode); setInputCode(""); }} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
+                            <button onClick={() => setIsAdminMode(true)} className="text-slate-500 hover:text-slate-300 text-sm font-bold mt-6 block w-full text-center transition">כניסת מנהל מערכת (Admin Auth)</button>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -1791,10 +1809,23 @@
                 } else { alert("קוד הגישה שגוי או אינו קיים במערכת."); }
             };
 
+            // פונקציית התחברות חכמה עם אימייל וסיסמה למנהל הראשי
+            const handleAdminLogin = async (email, password) => {
+                try {
+                    await firebase.auth().signInWithEmailAndPassword(email, password);
+                    setUserRole("מנהל מערכת ראשי"); 
+                    setUserType("admin"); 
+                    setUserCode("ADMIN"); 
+                    setView("admin");
+                } catch (error) {
+                    alert("שגיאת התחברות: ייתכן שהאימייל או הסיסמה שגויים.\n\n" + error.message);
+                }
+            };
+
             const renderCurrentView = () => {
                 try {
                     switch(view) {
-                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
+                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onAdminLogin={handleAdminLogin} />;
                         case "admin": return <AdminView accessCodes={accessCodes} students={students} handleLogout={handleLogout} />;
                         case "god_mode": return <GodModeView setGodRole={setGodRole} handleLogout={handleLogout} />;
                         case "madrich_dash": return <MadrichView userRole={userRole} userCode={userCode} accessCodes={accessCodes} students={students} cloudReports={cloudReports} setView={setView} handleLogout={handleLogout} />;
@@ -1812,7 +1843,7 @@
                         case "officer_dash": return <OfficerView userRole={userRole} accessCodes={accessCodes} offlineReports={offlineReports} setOfflineReports={setOfflineReports} cloudReports={cloudReports} handleLogout={handleLogout} />;
                         case "kmz_dash": return <KmzView userRole={userRole} handleLogout={handleLogout} />;
                         case "management_dash": return <ManagementView userRole={userRole} students={students} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
-                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} />;
+                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onAdminLogin={handleAdminLogin} />;
                     }
                 } catch (error) {
                     console.error(error);
