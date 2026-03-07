@@ -347,9 +347,10 @@
                 let scanner;
                 try {
                     scanner = new Html5QrcodeScanner("reader", { 
-                        fps: 15, 
-                        qrbox: { width: 250, height: 250 },
+                        fps: 30, // שופר ל-30fps לסריקה מהירה יותר
+                        qrbox: { width: 300, height: 300 }, // הוגדל קצת
                         aspectRatio: 1.0,
+                        disableFlip: false, // עוזר לחלק מהמצלמות
                         formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ] 
                     }, false);
                     scanner.render(
@@ -442,6 +443,38 @@
             const [newRoleType, setNewRoleType] = useState("kadar");
             const [newRoleName, setNewRoleName] = useState("");
             const [printData, setPrintData] = useState(null);
+
+            // גיבוי אוטומטי בעת כניסת מנהל
+            useEffect(() => {
+                const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+                const backupRef = database.ref(`system_backups/${today}`);
+                backupRef.once('value', snap => {
+                    if (!snap.exists()) {
+                        database.ref().once('value', fullSnap => {
+                            const dbData = fullSnap.val();
+                            if(dbData) {
+                                backupRef.set({
+                                    timestamp: new Date().getTime(),
+                                    students: dbData.students || {},
+                                    reports_cloud: dbData.reports_cloud || {},
+                                    access_codes: dbData.access_codes || {}
+                                });
+                            }
+                        });
+                    }
+                });
+            }, []);
+
+            // פונקציית עריכת קוד משתמש
+            const editCode = (oldCode, data) => {
+                const newCode = prompt(`עריכת קוד גישה לתפקיד: ${typeof data === 'object' ? data.name : data}\nהזן את המספר החדש שתרצה (מומלץ 4-6 ספרות):`, oldCode);
+                if (newCode && newCode !== oldCode && newCode.trim() !== "") {
+                    database.ref(`access_codes/${newCode}`).set(data)
+                        .then(() => database.ref(`access_codes/${oldCode}`).remove())
+                        .then(() => alert("הקוד עודכן בהצלחה!"))
+                        .catch(e => alert("שגיאה בעדכון הקוד: " + e.message));
+                }
+            };
 
             const rotateKadars = () => {
                 if (!confirm("פעולה זו תבטל את כל קודי הקד\"רים, ותפתח חלון הדפסה מאגד לקודים החדשים. להמשיך?")) return;
@@ -546,7 +579,13 @@
                             return (
                                 <div key={code} className="modern-card p-4 flex justify-between items-center">
                                     <div><div className="font-bold text-white">{rName}</div><div className="text-sm font-mono text-amber-400 mt-1">{code}</div></div>
-                                    <div className="flex flex-col items-end gap-2"><span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{CODE_ROLES[rType] || AUTH_ROLES[rType] || rType}</span><button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק קוד</button></div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{CODE_ROLES[rType] || AUTH_ROLES[rType] || rType}</span>
+                                        <div className="flex items-center mt-1">
+                                            <button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק קוד</button>
+                                            <button onClick={() => editCode(code, data)} className="text-blue-400 hover:text-blue-300 font-bold text-xs underline ml-3">ערוך מספר</button>
+                                        </div>
+                                    </div>
                                 </div>
                             )
                         })}
@@ -2008,7 +2047,7 @@
     </script>
     
     <script>
-        const APP_VERSION = '6.2'; 
+        const APP_VERSION = '6.3'; 
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -2070,4 +2109,3 @@
     </script>
 </body>
 </html>
-
