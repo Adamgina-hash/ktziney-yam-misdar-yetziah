@@ -1841,47 +1841,78 @@
         root.render(<App />);
     </script>
     
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                const swCode = `
-                    const CACHE_NAME = 'master-os-offline-v5';
-                    self.addEventListener('install', event => {
-                        event.waitUntil(
-                            caches.open(CACHE_NAME).then(cache => {
-                                return cache.addAll([
-                                    location.pathname,
-                                    'https://unpkg.com/react@18/umd/react.production.min.js',
-                                    'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-                                    'https://cdn.tailwindcss.com',
-                                    'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
-                                    'https://unpkg.com/html5-qrcode'
-                                ]).catch(err => console.warn('Cache warning:', err));
-                            })
-                        );
-                    });
-                    self.addEventListener('fetch', event => {
-                        event.respondWith(
-                            caches.match(event.request).then(response => {
-                                return response || fetch(event.request);
-                            }).catch(() => {
-                                if(event.request.mode === 'navigate') {
-                                    return caches.match(location.pathname);
-                                }
-                            })
-                        );
-                    });
-                `;
-                const blob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(swUrl).then(registration => {
-                    console.log('ServiceWorker registration successful offline mode enabled');
-                }).catch(err => {
-                    console.log('ServiceWorker registration failed: ', err);
+   <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            // שינינו את הגרסה ל-v6 - זה יגרום לדפדפן להבין שיש עדכון
+            const CACHE_NAME = 'master-os-v6'; 
+            
+            const swCode = `
+                const CACHE_NAME = '${CACHE_NAME}';
+                const ASSETS = [
+                    location.pathname,
+                    'https://unpkg.com/react@18/umd/react.production.min.js',
+                    'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+                    'https://cdn.tailwindcss.com',
+                    'https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js',
+                    'https://unpkg.com/html5-qrcode'
+                ];
+
+                self.addEventListener('install', event => {
+                    event.waitUntil(
+                        caches.open(CACHE_NAME).then(cache => {
+                            console.log('Caching assets');
+                            return cache.addAll(ASSETS);
+                        })
+                    );
+                    self.skipWaiting(); // גורם ל-SW החדש להיכנס לתוקף מיד
                 });
-            });
-        }
-    </script>
+
+                self.addEventListener('activate', event => {
+                    // מנגנון ניקוי: מוחק גרסאות קודמות של ה-Cache
+                    event.waitUntil(
+                        caches.keys().then(keys => {
+                            return Promise.all(
+                                keys.filter(key => key !== CACHE_NAME)
+                                    .map(key => caches.delete(key))
+                            );
+                        })
+                    );
+                    return self.clients.claim();
+                });
+
+                self.addEventListener('fetch', event => {
+                    event.respondWith(
+                        caches.match(event.request).then(response => {
+                            // אסטרטגיה: קודם מהרשת, ואם אין רשת - מהזיכרון
+                            return fetch(event.request).catch(() => response);
+                        })
+                    );
+                });
+            `;
+
+            const blob = new Blob([swCode], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+            
+            navigator.serviceWorker.register(swUrl).then(reg => {
+                console.log('ServiceWorker updated to ' + CACHE_NAME);
+                
+                // בדיקה אם יש עדכון מחכה
+                reg.onupdatefound = () => {
+                    const installingWorker = reg.installing;
+                    installingWorker.onstatechange = () => {
+                        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // אם מצאנו עדכון, נבקש מהמשתמש לרענן
+                            if(confirm("גרסה חדשה של המערכת זמינה! לרענן כעת?")) {
+                                window.location.reload();
+                            }
+                        }
+                    };
+                };
+            }).catch(err => console.log('SW registration failed:', err));
+        });
+    }
+</script>
 </body>
 
 </html>
