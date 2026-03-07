@@ -665,6 +665,7 @@
         };
 
         // --- ליבת האפליקציה עם מנגנון ההזדהות (Auth) ---
+       // --- ליבת האפליקציה עם מנגנון ההזדהות (Auth) מתוקן ---
         function App() {
             const [view, setView] = useState("login");
             const [userRole, setUserRole] = useState("");
@@ -681,26 +682,35 @@
             const [offlineReports, setOfflineReports] = useState([]);
             const [cloudReports, setCloudReports] = useState([]);
 
-            // האזנה קבועה למצב ההתחברות של המשתמש (מערכת ההזדהות של גוגל)
+            // 1. התיקון: האזנה מופרדת למצב ההתחברות כדי למנוע לולאה
             useEffect(() => {
                 const unsubscribeAuth = auth.onAuthStateChanged(user => {
                     if (user) {
-                        // אם זה המשתמש שיצרנו ב-Firebase Console:
-                        if (user.uid === ADMIN_UID) {
-                            setUserRole("מנהל מערכת ראשי (Auth)");
-                            setUserType("god");
-                            setUserCode("GOD");
-                            setView("god_mode");
-                        } else {
-                            // הכנה לעתיד למשתמשי סגל נוספים שיתווספו לענן
-                            setUserRole(user.email);
-                            setUserType("officer");
-                            setUserCode("AUTH_USER");
-                            setView("officer_dash");
-                        }
+                        // הוספנו פה בדיקה: אל תנווט אלא אם המשתמש נמצא במסך ה'לוגין'
+                        setView(currentView => {
+                            if (currentView === "login") {
+                                if (user.uid === ADMIN_UID) {
+                                    setUserRole("מנהל מערכת ראשי (Auth)");
+                                    setUserType("god");
+                                    setUserCode("GOD");
+                                    return "god_mode";
+                                } else {
+                                    setUserRole(user.email);
+                                    setUserType("officer");
+                                    setUserCode("AUTH_USER");
+                                    return "officer_dash";
+                                }
+                            }
+                            // אם הוא כבר בתוך המערכת ולחץ על תפקיד אחר - אל תגע!
+                            return currentView; 
+                        });
                     }
                 });
+                return () => unsubscribeAuth();
+            }, []); // <--- המערך הריק מבטיח שזה לא ירענן את עצמו כשתחליף תפקיד
 
+            // 2. שאר ההאזנות לנתוני המערכת
+            useEffect(() => {
                 const studentsRef = database.ref('students');
                 studentsRef.on('value', snap => { const data = snap.val(); if (!data) { setStudents([]); return; } const cleanList = Object.keys(data).map(k => ({ ...data[k], id: k, status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') })); setStudents(cleanList); });
                 const codesRef = database.ref('access_codes'); codesRef.on('value', snap => setAccessCodes(snap.val() || {}));
@@ -709,10 +719,9 @@
                 const commsRef = database.ref('system/comms'); let initialCommsLoaded = false; commsRef.once('value').then(() => initialCommsLoaded = true); commsRef.on('child_added', snap => { if (!initialCommsLoaded) return; const data = snap.val(); if (EMERGENCY_ROLES.includes(userType)) { setPopupMsg(`🔴 ${data.author}: ${data.text}`); setTimeout(() => setPopupMsg(""), 6000); } });
                 const reportsRef = database.ref('reports_cloud'); reportsRef.on('value', snap => { const data = snap.val(); if(data) { setCloudReports(Object.values(data).sort((a,b) => b.timestamp - a.timestamp)); } else { setCloudReports([]); } });
                 
-                return () => { unsubscribeAuth(); studentsRef.off(); codesRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
+                return () => { studentsRef.off(); codesRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
             }, [userType]);
 
-            // יציאה מאובטחת מהמערכת
             const handleLogout = () => { 
                 auth.signOut().then(() => {
                     setUserRole(""); setUserType(""); setUserCode(""); setView("login"); 
@@ -721,10 +730,19 @@
 
             const setGodRole = (rType, rName) => {
                 setUserRole(`${rName} (God Mode)`); setUserType(rType); setUserCode("GOD_MODE_USER");
-                if (rType === 'admin') setView("admin"); else if (rType === 'madrich') setView("madrich_dash"); else if (rType === 'kadar') setView("kadar_menu"); else if (rType === 'ab_bayit') setView("ab_bayit"); else if (['kabat', 'safety_comm'].includes(rType)) setView("kabat_dash"); else if (rType === 'scanner') setView("scanner_dash"); else if (['firefighter', 'medic'].includes(rType)) setView("medic_dash"); else if (rType === 'officer') setView("officer_dash"); else if (rType === 'kmz') setView("kmz_dash"); else if (['cadet_comm', 'deputy_comm', 'village_mgr'].includes(rType)) setView("management_dash"); else setView("kadar_menu");
+                if (rType === 'admin') setView("admin"); 
+                else if (rType === 'madrich') setView("madrich_dash"); 
+                else if (rType === 'kadar') setView("kadar_menu"); 
+                else if (rType === 'ab_bayit') setView("ab_bayit"); 
+                else if (['kabat', 'safety_comm'].includes(rType)) setView("kabat_dash"); 
+                else if (rType === 'scanner') setView("scanner_dash"); 
+                else if (['firefighter', 'medic'].includes(rType)) setView("medic_dash"); 
+                else if (rType === 'officer') setView("officer_dash"); 
+                else if (rType === 'kmz') setView("kmz_dash"); 
+                else if (['cadet_comm', 'deputy_comm', 'village_mgr'].includes(rType)) setView("management_dash"); 
+                else setView("kadar_menu");
             };
 
-            // לוגיקה חדשה למסך הכניסה
             const handlePinAttempt = (inputCode) => {
                 if (accessCodes && accessCodes[inputCode]) {
                     const codeData = accessCodes[inputCode];
@@ -737,9 +755,7 @@
 
             const handleAuthAttempt = async (email, password) => {
                 try {
-                    // השרת של גוגל בודק את הסיסמה!
                     await auth.signInWithEmailAndPassword(email, password);
-                    // ה-useEffect שלמעלה יזהה את ההתחברות ויעביר את המסך מיד.
                 } catch(error) {
                     alert("שגיאת התחברות: " + error.message);
                 }
