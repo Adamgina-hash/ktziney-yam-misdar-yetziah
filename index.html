@@ -96,7 +96,6 @@
         const database = firebase.database();
         const auth = firebase.auth();
 
-        // ה-UID של המנהל שיצרת:
         const ADMIN_UID = "SUceoKbR1ZeJSnJeFegNPJOAA5Z2";
 
         const MajorsList = ["מכונה", "חובל משמרת", "אלקטרוניקה", "לוגיסטיקת נמלים"];
@@ -104,6 +103,7 @@
         
         const EMERGENCY_ROLES = ['kabat', 'safety_comm', 'scanner', 'medic', 'firefighter'];
         const VALID_CLASSES = ["א/1", "א/2", "א/3", "ב/1", "ב/2", "ב/3", "ב/4", "ג/1", "ג/2", "ג/3", "ג/4", "ד/1", "ד/2", "ד/3", "ד/4"];
+        
         const extractClassFromName = (nameStr) => {
             if (!nameStr) return "";
             for (let c of VALID_CLASSES) {
@@ -118,8 +118,12 @@
         const ROOM_CHECKS = ["סדר כללי", "מיטות", "שולחנות", "מראה", "אורות", "שטיפה", "פח", "מקלחת", "כיור", "שירותים", "מטען", "מזגן"];
 
         const generateRandomCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+        
         const AnchorIcon = ({ size = 24, color = "currentColor" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5V21M5 12H2M22 12h-3M12 5c-3.31 0-6 2.69-6 6 0 3.1 2.31 5.67 5.33 5.97M12 5c3.31 0 6 2.69 6 6 0 3.1-2.31 5.67-5.33 5.97M7 21h10"/><circle cx="12" cy="5" r="2"/></svg>
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5V21M5 12H2M22 12h-3M12 5c-3.31 0-6 2.69-6 6 0 3.1 2.31 5.67 5.33 5.97M12 5c3.31 0 6 2.69 6 6 0 3.1-2.31 5.67-5.33 5.97M7 21h10"/>
+                <circle cx="12" cy="5" r="2"/>
+            </svg>
         );
 
         const generateQR = (text) => { 
@@ -159,13 +163,13 @@
                 totalStudents: p._r ? p._r.length : 0, totalPresent: p._r ? p._r.filter(r => r[2] === 1).length : 0, signature: null, 
                 rows: p._r ? p._r.map(r => ({id: Math.random().toString(), name: r[0], class: r[1], isPresent: r[2] === 1, note: r[3] === 'א' ? 'אושר שחרור' : r[3]})) : []
             });
+            
             if (Array.isArray(parsed)) return parsed.map(mapReport);
             else return mapReport(parsed);
         };
 
-        // --- רכיב כניסה מעודכן למערכת (Auth + PIN) ---
         const LoginView = ({ isEmergency, onPinAttempt, onAuthAttempt }) => {
-            const [loginMode, setLoginMode] = useState('pin'); // 'pin' or 'auth'
+            const [loginMode, setLoginMode] = useState('pin');
             const [inputCode, setInputCode] = useState("");
             const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
@@ -216,11 +220,30 @@
             );
         };
 
-        // --- שאר הרכיבים זהים לחלוטין לקודם כדי לא לשבור שום דבר ---
         const EmergencyComms = ({ userRole }) => {
-            const [msg, setMsg] = useState(""); const [comms, setComms] = useState([]);
-            useEffect(() => { const ref = database.ref('system/comms').limitToLast(15); ref.on('value', snap => { const data = snap.val(); if(data) setComms(Object.values(data).reverse()); else setComms([]); }); return () => ref.off(); }, []);
-            const sendMsg = () => { if(!msg.trim()) return; database.ref('system/comms').push({ text: msg, author: userRole, time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) }); setMsg(""); };
+            const [msg, setMsg] = useState("");
+            const [comms, setComms] = useState([]);
+            
+            useEffect(() => { 
+                const ref = database.ref('system/comms').limitToLast(15); 
+                ref.on('value', snap => { 
+                    const data = snap.val(); 
+                    if(data) setComms(Object.values(data).reverse()); 
+                    else setComms([]); 
+                }); 
+                return () => ref.off(); 
+            }, []);
+            
+            const sendMsg = () => { 
+                if(!msg.trim()) return; 
+                database.ref('system/comms').push({ 
+                    text: msg, 
+                    author: userRole, 
+                    time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}) 
+                }); 
+                setMsg(""); 
+            };
+            
             return (
                 <div className="modern-card p-4 border-t-4 border-red-500 bg-slate-800">
                     <h3 className="font-black text-white text-sm mb-3 flex items-center gap-2"><span className="text-red-500">🔴</span> רשת קשר כוחות חירום</h3>
@@ -230,7 +253,11 @@
                     </div>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                         {comms.length === 0 && <div className="text-slate-500 text-xs text-center font-bold">רשת הקשר שקטה.</div>}
-                        {comms.map((c, i) => <div key={i} className="bg-slate-700/50 p-2 rounded-lg text-sm border border-slate-600/50"><span className="text-slate-400 text-xs font-mono">[{c.time}]</span> <span className="font-bold text-amber-400">{c.author}:</span> <span className="text-slate-200 font-bold">{c.text}</span></div>)}
+                        {comms.map((c, i) => (
+                            <div key={i} className="bg-slate-700/50 p-2 rounded-lg text-sm border border-slate-600/50">
+                                <span className="text-slate-400 text-xs font-mono">[{c.time}]</span> <span className="font-bold text-amber-400">{c.author}:</span> <span className="text-slate-200 font-bold">{c.text}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
@@ -238,7 +265,9 @@
 
         const ReportViewerModal = ({ report, onClose }) => {
             if (!report) return null;
-            const dateStr = new Date(report.timestamp).toLocaleDateString('he-IL'); const timeStr = new Date(report.timestamp).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+            const dateStr = new Date(report.timestamp).toLocaleDateString('he-IL'); 
+            const timeStr = new Date(report.timestamp).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+            
             return (
                 <div className="fixed inset-0 bg-black/95 z-[9999] overflow-y-auto p-4 md:p-8 no-print-bg print-modal-fix">
                     <div className="no-print mb-6 text-center max-w-3xl mx-auto flex justify-center gap-3 mt-4 bg-slate-800 p-4 rounded-2xl shadow-lg border border-slate-600">
@@ -246,17 +275,61 @@
                         <button onClick={onClose} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-6 py-4 rounded-xl font-bold transition">סגור תצוגה</button>
                     </div>
                     <div className="official-print-wrapper shadow-2xl print:shadow-none">
-                        <div className="official-header"><div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">{report.type}</h2></div><div className="header-left"><div className="meta-text">תאריך: <span dir="ltr">{dateStr}</span></div><div className="meta-text">שעה: <span dir="ltr">{timeStr}</span></div></div></div>
+                        <div className="official-header">
+                            <div className="header-right">
+                                <h1 className="school-name">ביה"ס לקציני ים עכו</h1>
+                                <h2 className="report-title">{report.type}</h2>
+                            </div>
+                            <div className="header-left">
+                                <div className="meta-text">תאריך: <span dir="ltr">{dateStr}</span></div>
+                                <div className="meta-text">שעה: <span dir="ltr">{timeStr}</span></div>
+                            </div>
+                        </div>
                         <div className="mb-2 text-black font-bold text-lg">מחלקה / כיתה: {report.author}</div>
                         <div className="table-container">
                             <table className="official-table">
-                                <thead><tr><th style={{width:'40%'}}>שם החניך</th><th style={{width:'20%'}}>כיתה</th>{report.type === 'kmz' ? <th style={{width:'20%'}}>כניסה</th> : <th style={{width:'15%'}}>נוכחות</th>}{report.type === 'kmz' ? <th style={{width:'20%'}}>יציאה</th> : <th style={{width:'25%'}}>הערות</th>}</tr></thead>
-                                <tbody>{report.rows && report.rows.map((r, i) => (<tr key={i} style={{ backgroundColor: r.isPresent === false ? '#fee2e2' : 'inherit' }}><td style={{fontWeight:'900'}}>{r.name}</td><td>{r.class}</td>{report.type === 'kmz' ? (<><td style={{fontWeight:'900'}}>{r.timeIn || '-'}</td><td style={{fontWeight:'900'}}>{r.timeOut || '-'}</td></>) : (<><td style={{fontWeight:'900', color: r.isPresent ? '#059669' : '#dc2626'}}>{r.isPresent ? 'נוכח' : 'חסר'}</td><td>{r.note || '-'}</td></>)}</tr>))}</tbody>
+                                <thead>
+                                    <tr>
+                                        <th style={{width:'40%'}}>שם החניך</th>
+                                        <th style={{width:'20%'}}>כיתה</th>
+                                        {report.type === 'kmz' ? <th style={{width:'20%'}}>כניסה</th> : <th style={{width:'15%'}}>נוכחות</th>}
+                                        {report.type === 'kmz' ? <th style={{width:'20%'}}>יציאה</th> : <th style={{width:'25%'}}>הערות</th>}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {report.rows && report.rows.map((r, i) => (
+                                        <tr key={i} style={{ backgroundColor: r.isPresent === false ? '#fee2e2' : 'inherit' }}>
+                                            <td style={{fontWeight:'900'}}>{r.name}</td>
+                                            <td>{r.class}</td>
+                                            {report.type === 'kmz' ? (
+                                                <>
+                                                    <td style={{fontWeight:'900'}}>{r.timeIn || '-'}</td>
+                                                    <td style={{fontWeight:'900'}}>{r.timeOut || '-'}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td style={{fontWeight:'900', color: r.isPresent ? '#059669' : '#dc2626'}}>{r.isPresent ? 'נוכח' : 'חסר'}</td>
+                                                    <td>{r.note || '-'}</td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
                             </table>
                         </div>
                         <div className="official-footer">
-                            {report.type !== 'kmz' ? <div className="summary-box">סה"כ נוכחים / תקינים: <b>{report.totalPresent !== undefined ? report.totalPresent : (report.rows && report.rows.filter(r=>r.isPresent).length) || 0}</b> מתוך <b>{report.totalStudents || (report.rows && report.rows.length) || 0}</b></div> : <div className="summary-box">סה"כ נבדקו במרפאה: <b>{report.rows && report.rows.length}</b></div>}
-                            <div className="signature-box"><div className="signer-name">{report.signerName || "לא הוזן שם"}</div><div className="signature-line">{report.signature ? <img src={report.signature} alt="חתימה" /> : <div style={{height: '50px'}}></div>}</div><div className="signer-role">{report.userRole || report.author}</div></div>
+                            {report.type !== 'kmz' ? 
+                                <div className="summary-box">סה"כ נוכחים / תקינים: <b>{report.totalPresent !== undefined ? report.totalPresent : (report.rows && report.rows.filter(r=>r.isPresent).length) || 0}</b> מתוך <b>{report.totalStudents || (report.rows && report.rows.length) || 0}</b></div> 
+                                : 
+                                <div className="summary-box">סה"כ נבדקו במרפאה: <b>{report.rows && report.rows.length}</b></div>
+                            }
+                            <div className="signature-box">
+                                <div className="signer-name">{report.signerName || "לא הוזן שם"}</div>
+                                <div className="signature-line">
+                                    {report.signature ? <img src={report.signature} alt="חתימה" /> : <div style={{height: '50px'}}></div>}
+                                </div>
+                                <div className="signer-role">{report.userRole || report.author}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -282,26 +355,48 @@
         };
 
         const AdminView = ({ accessCodes, students, handleLogout }) => {
-            const [newRoleType, setNewRoleType] = useState("kadar"); const [newRoleName, setNewRoleName] = useState(""); const [printData, setPrintData] = useState(null);
+            const [newRoleType, setNewRoleType] = useState("kadar"); 
+            const [newRoleName, setNewRoleName] = useState(""); 
+            const [printData, setPrintData] = useState(null);
+            
             const rotateKadars = () => {
                 if (!confirm("פעולה זו תבטל את כל קודי הקד\"רים, ותפתח חלון הדפסה מאגד לקודים החדשים. להמשיך?")) return;
                 const updates = {}; const newCodesList = [];
                 Object.entries(accessCodes || {}).forEach(([oldCode, data]) => {
                     let rType = typeof data === 'object' ? data.type : 'kadar'; let rName = typeof data === 'object' ? data.name : data;
-                    if (rType === 'kadar') { const newCode = generateRandomCode(); updates[oldCode] = null; updates[newCode] = { name: rName, type: 'kadar' }; newCodesList.push({ name: rName, code: newCode }); }
+                    if (rType === 'kadar') { 
+                        const newCode = generateRandomCode(); 
+                        updates[oldCode] = null; 
+                        updates[newCode] = { name: rName, type: 'kadar' }; 
+                        newCodesList.push({ name: rName, code: newCode }); 
+                    }
                 });
                 if (newCodesList.length === 0) return alert("לא נמצאו קודי קד\"ר לחידוש במערכת.");
                 database.ref('access_codes').update(updates, (err) => { if (!err) setPrintData(newCodesList); });
             };
+            
             const rotateKmz = () => {
                 if (!confirm("להחליף את קוד הק.מ.ז עכשיו?")) return;
-                const updates = {}; Object.entries(accessCodes || {}).forEach(([oldCode, data]) => { let rType = typeof data === 'object' ? data.type : 'kadar'; if (rType === 'kmz') updates[oldCode] = null; });
-                const newCode = generateRandomCode(); updates[newCode] = { name: 'מרפאה', type: 'kmz' }; database.ref('access_codes').update(updates); alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
+                const updates = {}; 
+                Object.entries(accessCodes || {}).forEach(([oldCode, data]) => { 
+                    let rType = typeof data === 'object' ? data.type : 'kadar'; 
+                    if (rType === 'kmz') updates[oldCode] = null; 
+                });
+                const newCode = generateRandomCode(); 
+                updates[newCode] = { name: 'מרפאה', type: 'kmz' }; 
+                database.ref('access_codes').update(updates); 
+                alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
             };
+            
             const wipeCloudData = async () => {
                 const pass = prompt("אזהרה חמורה: מחיקת דוחות. הקלד 'אישור':");
                 if (pass !== 'אישור') return;
-                try { await database.ref('reports_cloud').remove(); await database.ref('system/alerts').remove(); await database.ref('system/comms').remove(); alert("הענן נוקה!"); } catch (e) { alert("שגיאה: " + e.message); }
+                try { 
+                    await database.ref('reports_cloud').remove(); 
+                    await database.ref('system/alerts').remove(); 
+                    await database.ref('system/comms').remove(); 
+                    alert("הענן נוקה!"); 
+                } catch (e) { alert("שגיאה: " + e.message); }
             };
 
             if (printData) {
@@ -309,8 +404,20 @@
                     <div className="bg-white print:bg-white text-black print:text-black min-h-screen p-8 print:p-0 print-modal-fix" dir="rtl">
                         <h1 className="text-3xl font-black mb-6 text-center">הנפקת קודי גישה לסבב קד"רים חדש</h1>
                         <table className="w-full text-center border-collapse border border-slate-300">
-                            <thead><tr className="bg-slate-200"><th className="border p-3 text-lg font-black">תפקיד / כיתה</th><th className="border p-3 text-lg font-black">קוד גישה (לשתף עם הקד"ר)</th></tr></thead>
-                            <tbody>{printData.map((d, i) => (<tr key={i}><td className="border p-3 font-bold text-lg">{d.name}</td><td className="border p-3 font-black text-2xl tracking-widest text-navy font-mono" dir="ltr">{d.code}</td></tr>))}</tbody>
+                            <thead>
+                                <tr className="bg-slate-200">
+                                    <th className="border p-3 text-lg font-black">תפקיד / כיתה</th>
+                                    <th className="border p-3 text-lg font-black">קוד גישה (לשתף עם הקד"ר)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {printData.map((d, i) => (
+                                    <tr key={i}>
+                                        <td className="border p-3 font-bold text-lg">{d.name}</td>
+                                        <td className="border p-3 font-black text-2xl tracking-widest text-navy font-mono" dir="ltr">{d.code}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
                         </table>
                         <div className="mt-8 text-center no-print flex gap-4 justify-center">
                             <button onClick={() => window.print()} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-xl shadow-lg">🖨️ הדפס מסמך</button>
@@ -347,11 +454,18 @@
                     <div className="space-y-3">
                         <h3 className="font-bold text-slate-400 text-sm mb-2">משתמשים פעילים (קודים)</h3>
                         {Object.entries(accessCodes || {}).map(([code, data]) => {
-                            const rName = typeof data === 'object' ? data.name : data; const rType = typeof data === 'object' ? data.type : 'kadar';
+                            const rName = typeof data === 'object' ? data.name : data; 
+                            const rType = typeof data === 'object' ? data.type : 'kadar';
                             return (
                                 <div key={code} className="modern-card p-4 flex justify-between items-center">
-                                    <div><div className="font-bold text-white">{rName}</div><div className="text-sm font-mono text-amber-400 mt-1">{code}</div></div>
-                                    <div className="flex flex-col items-end gap-2"><span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{ROLE_TYPES[rType]}</span><button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק מורשה</button></div>
+                                    <div>
+                                        <div className="font-bold text-white">{rName}</div>
+                                        <div className="text-sm font-mono text-amber-400 mt-1">{code}</div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{ROLE_TYPES[rType]}</span>
+                                        <button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק מורשה</button>
+                                    </div>
                                 </div>
                             )
                         })}
@@ -371,7 +485,9 @@
                         <p className="text-slate-300 text-lg mb-6 font-bold">ברוך הבא מנהל ראשי. לאיזה תפקיד תרצה להיכנס עכשיו?</p>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {Object.entries(ROLE_TYPES).map(([val, label]) => (
-                                <button key={val} onClick={() => setGodRole(val, label)} className="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white p-4 rounded-xl font-bold shadow-lg transition hover:border-amber-400 hover:text-amber-400">{label}</button>
+                                <button key={val} onClick={() => setGodRole(val, label)} className="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white p-4 rounded-xl font-bold shadow-lg transition hover:border-amber-400 hover:text-amber-400">
+                                    {label}
+                                </button>
                             ))}
                             <button onClick={() => setGodRole('admin', 'אדמין מערכת')} className="bg-amber-600 hover:bg-amber-500 border border-amber-400 text-slate-900 p-4 rounded-xl font-black shadow-lg transition">⚙️ ניהול אדמין</button>
                         </div>
@@ -384,35 +500,65 @@
             const [selectedReport, setSelectedReport] = useState(null);
             const assignedClass = accessCodes[userCode]?.assignedClass || "";
             const allClassesList = useMemo(() => [...new Set(students.map(s => s.className?.trim()).filter(Boolean))].sort(), [students]);
-            const handleClassChange = (e) => { const newClass = e.target.value; database.ref(`access_codes/${userCode}`).update({ assignedClass: newClass }); };
+            
+            const handleClassChange = (e) => { 
+                const newClass = e.target.value; 
+                database.ref(`access_codes/${userCode}`).update({ assignedClass: newClass }); 
+            };
+            
             const classStudents = useMemo(() => students.filter(s => s.className === assignedClass), [students, assignedClass]);
+            
             const madrichReports = useMemo(() => {
                 if (!assignedClass) return [];
-                return cloudReports.filter(r => { if (r.author === assignedClass) return true; if (r.rows && r.rows.some(row => row.class === assignedClass)) return true; return false; }).slice(0, 10); 
+                return cloudReports.filter(r => { 
+                    if (r.author === assignedClass) return true; 
+                    if (r.rows && r.rows.some(row => row.class === assignedClass)) return true; 
+                    return false; 
+                }).slice(0, 10); 
             }, [cloudReports, assignedClass]);
+            
             const stats = useMemo(() => {
                 let ok = 0, waiting = 0, sick = 0;
-                classStudents.forEach(s => { if(s.status === 'נוכח' || s.isDone) ok++; else if(s.status === 'ממתין') waiting++; else sick++; });
+                classStudents.forEach(s => { 
+                    if(s.status === 'נוכח' || s.isDone) ok++; 
+                    else if(s.status === 'ממתין') waiting++; 
+                    else sick++; 
+                });
                 return { ok, waiting, sick, total: classStudents.length };
             }, [classStudents]);
 
             return (
                 <div className="min-h-screen pb-20 no-print">
                     <header className="mb-6 bg-slate-800 text-white p-6 rounded-b-3xl shadow-xl flex justify-between items-center border-b border-slate-700">
-                        <div><h1 className="text-2xl font-black text-amber-400">דשבורד מדריך</h1><h2 className="text-sm font-bold text-slate-400">{userRole}</h2></div>
+                        <div>
+                            <h1 className="text-2xl font-black text-amber-400">דשבורד מדריך</h1>
+                            <h2 className="text-sm font-bold text-slate-400">{userRole}</h2>
+                        </div>
                         <button onClick={handleLogout} className="text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg font-bold transition">התנתק</button>
                     </header>
                     <div className="p-4 max-w-xl mx-auto space-y-6">
                         <div className="modern-card p-6 border-t-4 border-amber-400">
                             <h3 className="font-bold text-white mb-2 text-sm">בחירת כיתת אם עליה אתה מפקד:</h3>
-                            <select className="w-full p-4 rounded-xl border border-slate-600 bg-slate-700 text-white font-bold outline-none focus:border-amber-400" value={assignedClass} onChange={handleClassChange}><option value="">-- בחר כיתה להצגת נתונים --</option>{allClassesList.map(c => <option key={c} value={c}>כיתה {c}</option>)}</select>
+                            <select className="w-full p-4 rounded-xl border border-slate-600 bg-slate-700 text-white font-bold outline-none focus:border-amber-400" value={assignedClass} onChange={handleClassChange}>
+                                <option value="">-- בחר כיתה להצגת נתונים --</option>
+                                {allClassesList.map(c => <option key={c} value={c}>כיתה {c}</option>)}
+                            </select>
                         </div>
                         {assignedClass && (
                             <>
                                 <div className="grid grid-cols-3 gap-3 text-center">
-                                    <div className="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow"><div className="text-2xl font-black text-white">{stats.total}</div><div className="text-xs font-bold text-slate-400">סה"כ חניכים</div></div>
-                                    <div className="bg-emerald-900/50 border border-emerald-700 p-4 rounded-2xl shadow"><div className="text-2xl font-black text-emerald-400">{stats.ok}</div><div className="text-xs font-bold text-emerald-200">נוכחים</div></div>
-                                    <div className="bg-amber-900/50 border border-amber-700 p-4 rounded-2xl shadow"><div className="text-2xl font-black text-amber-400">{stats.sick}</div><div className="text-xs font-bold text-amber-200">חסרים</div></div>
+                                    <div className="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow">
+                                        <div className="text-2xl font-black text-white">{stats.total}</div>
+                                        <div className="text-xs font-bold text-slate-400">סה"כ חניכים</div>
+                                    </div>
+                                    <div className="bg-emerald-900/50 border border-emerald-700 p-4 rounded-2xl shadow">
+                                        <div className="text-2xl font-black text-emerald-400">{stats.ok}</div>
+                                        <div className="text-xs font-bold text-emerald-200">נוכחים</div>
+                                    </div>
+                                    <div className="bg-amber-900/50 border border-amber-700 p-4 rounded-2xl shadow">
+                                        <div className="text-2xl font-black text-amber-400">{stats.sick}</div>
+                                        <div className="text-xs font-bold text-amber-200">חסרים</div>
+                                    </div>
                                 </div>
                                 <div className="modern-card p-6 border-t-4 border-blue-500">
                                     <h3 className="font-bold text-white text-lg mb-4">פעולות מהירות לכיתה {assignedClass}</h3>
@@ -430,7 +576,10 @@
                                         {madrichReports.length === 0 && <div className="text-slate-400 text-sm">טרם התקבלו דו"חות עבור כיתה זו.</div>}
                                         {madrichReports.map(r => (
                                             <div key={r.reportId} className="bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600">
-                                                <div><div className="font-bold text-white text-sm">{r.type === 'kmz' ? 'ביקור במרפאה' : r.type} <span className="text-slate-400 text-xs ml-2">({r.author})</span></div><div className="text-xs text-amber-400 mt-1">{new Date(r.timestamp).toLocaleTimeString('he-IL')}</div></div>
+                                                <div>
+                                                    <div className="font-bold text-white text-sm">{r.type === 'kmz' ? 'ביקור במרפאה' : r.type} <span className="text-slate-400 text-xs ml-2">({r.author})</span></div>
+                                                    <div className="text-xs text-amber-400 mt-1">{new Date(r.timestamp).toLocaleTimeString('he-IL')}</div>
+                                                </div>
                                                 <button onClick={() => setSelectedReport(r)} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition border border-slate-500">צפה</button>
                                             </div>
                                         ))}
@@ -456,60 +605,195 @@
         };
 
         const KadarForm = ({ userRole, userCode, accessCodes, userType, students, formType, setView }) => {
-            const isMorning = ['boker', 'knisa'].includes(formType); const isEmergencyForm = formType === 'emergency'; const isPDFNeeded = ['nochachut', 'kibui_orot', 'boker', 'knisa'].includes(formType);
-            let title = 'דו"ח דיווח'; if(formType==='boker')title='מסדר בוקר'; if(formType==='knisa')title='מסדר כניסה'; if(formType==='nochachut')title='דו"ח נוכחות'; if(formType==='kibui_orot')title='מסדר כיבוי אורות'; if(isEmergencyForm)title='דו"ח חירום';
-            const assignedClass = accessCodes[userCode]?.assignedClass || ""; const extractedClass = userType === 'madrich' ? assignedClass : extractClassFromName(userRole);
-            const exactMatchStudents = students.filter(s => { const sClass = (s.className || '').trim(); return sClass === userRole.trim() || (extractedClass && sClass === extractedClass); }).sort((a,b) => (a.lastName||'').localeCompare(b.lastName||''));
-            const [selectedClass, setSelectedClass] = useState(""); const classStudents = exactMatchStudents.length > 0 ? exactMatchStudents : students.filter(s => (s.className || '').trim() === selectedClass).sort((a,b) => (a.lastName||'').localeCompare(b.lastName||''));
-            const [formState, setFormState] = useState({}); const [submittedReport, setSubmittedReport] = useState(null); const [showReportQR, setShowReportQR] = useState(false); const [qrPayload, setQrPayload] = useState(""); const [isSubmitting, setIsSubmitting] = useState(false); const [showPDFModal, setShowPDFModal] = useState(false); const [signerName, setSignerName] = useState("");
-            const canvasRef = useRef(null); const [isDrawing, setIsDrawing] = useState(false);
+            const isMorning = ['boker', 'knisa'].includes(formType); 
+            const isEmergencyForm = formType === 'emergency'; 
+            const isPDFNeeded = ['nochachut', 'kibui_orot', 'boker', 'knisa'].includes(formType);
+            
+            let title = 'דו"ח דיווח'; 
+            if(formType==='boker') title='מסדר בוקר'; 
+            if(formType==='knisa') title='מסדר כניסה'; 
+            if(formType==='nochachut') title='דו"ח נוכחות'; 
+            if(formType==='kibui_orot') title='מסדר כיבוי אורות'; 
+            if(isEmergencyForm) title='דו"ח חירום';
+            
+            const assignedClass = accessCodes[userCode]?.assignedClass || ""; 
+            const extractedClass = userType === 'madrich' ? assignedClass : extractClassFromName(userRole);
+            
+            const exactMatchStudents = students.filter(s => { 
+                const sClass = (s.className || '').trim(); 
+                return sClass === userRole.trim() || (extractedClass && sClass === extractedClass); 
+            }).sort((a,b) => (a.lastName||'').localeCompare(b.lastName||''));
+            
+            const [selectedClass, setSelectedClass] = useState(""); 
+            const classStudents = exactMatchStudents.length > 0 ? exactMatchStudents : students.filter(s => (s.className || '').trim() === selectedClass).sort((a,b) => (a.lastName||'').localeCompare(b.lastName||''));
+            
+            const [formState, setFormState] = useState({}); 
+            const [submittedReport, setSubmittedReport] = useState(null); 
+            const [showReportQR, setShowReportQR] = useState(false); 
+            const [qrPayload, setQrPayload] = useState(""); 
+            const [isSubmitting, setIsSubmitting] = useState(false); 
+            const [showPDFModal, setShowPDFModal] = useState(false); 
+            const [signerName, setSignerName] = useState("");
+            
+            const canvasRef = useRef(null); 
+            const [isDrawing, setIsDrawing] = useState(false);
 
-            const startDrawing = (e) => { if(!canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.moveTo(offsetX, offsetY); setIsDrawing(true); };
-            const draw = (e) => { if (!isDrawing || !canvasRef.current) return; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); canvasRef.current.getContext('2d').stroke(); };
-            const stopDrawing = () => setIsDrawing(false); const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
-            const handleToggle = (id) => { const current = formState[id] || { status: false, note: '', customNote: '' }; setFormState({ ...formState, [id]: { ...current, status: !current.status } }); };
-            const handleNote = (id, note) => { const current = formState[id] || { status: false, note: '', customNote: '' }; setFormState({ ...formState, [id]: { ...current, note } }); };
+            const startDrawing = (e) => { 
+                if(!canvasRef.current) return; 
+                const ctx = canvasRef.current.getContext('2d'); 
+                ctx.beginPath(); 
+                ctx.lineWidth = 3; 
+                ctx.lineCap = 'round'; 
+                ctx.strokeStyle = '#000'; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                ctx.moveTo(offsetX, offsetY); 
+                setIsDrawing(true); 
+            };
+            
+            const draw = (e) => { 
+                if (!isDrawing || !canvasRef.current) return; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); 
+                canvasRef.current.getContext('2d').stroke(); 
+            };
+            
+            const stopDrawing = () => setIsDrawing(false); 
+            const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
+            
+            const handleToggle = (id) => { 
+                const current = formState[id] || { status: false, note: '', customNote: '' }; 
+                setFormState({ ...formState, [id]: { ...current, status: !current.status } }); 
+            };
+            
+            const handleNote = (id, note) => { 
+                const current = formState[id] || { status: false, note: '', customNote: '' }; 
+                setFormState({ ...formState, [id]: { ...current, note } }); 
+            };
 
             const finishForm = async () => {
-                if (classStudents.length === 0) return alert("אין חניכים להגשה."); if (!signerName.trim()) return alert("חובה להזין את שם ממלא הדו\"ח.");
-                setIsSubmitting(true); let totalPresent = 0;
-                const finalRows = classStudents.map(s => { const rec = formState[s.id] || { status: false, note: '', customNote: '' }; let isCountedPresent = rec.status; if (isMorning && !isCountedPresent && MORNING_COUNTS_AS_PRESENT.includes(rec.note)) isCountedPresent = true; if (isCountedPresent) totalPresent++; return { id: s.id, name: `${s.lastName} ${s.firstName}`, class: s.className, isPresent: isCountedPresent, note: rec.note === 'אחר (ידני)' ? rec.customNote : rec.note }; });
-                const finalAuthor = exactMatchStudents.length > 0 ? (extractedClass || userRole) : selectedClass; const safeAuthor = finalAuthor.replace(/[\/\.#$\[\]]/g, '-'); const generatedReportId = `rep_${safeAuthor}_${title}_${new Date().getTime()}`;
+                if (classStudents.length === 0) return alert("אין חניכים להגשה."); 
+                if (!signerName.trim()) return alert("חובה להזין את שם ממלא הדו\"ח.");
+                setIsSubmitting(true); 
+                let totalPresent = 0;
+                
+                const finalRows = classStudents.map(s => { 
+                    const rec = formState[s.id] || { status: false, note: '', customNote: '' }; 
+                    let isCountedPresent = rec.status; 
+                    if (isMorning && !isCountedPresent && MORNING_COUNTS_AS_PRESENT.includes(rec.note)) isCountedPresent = true; 
+                    if (isCountedPresent) totalPresent++; 
+                    return { 
+                        id: s.id, 
+                        name: `${s.lastName} ${s.firstName}`, 
+                        class: s.className, 
+                        isPresent: isCountedPresent, 
+                        note: rec.note === 'אחר (ידני)' ? rec.customNote : rec.note 
+                    }; 
+                });
+                
+                const finalAuthor = exactMatchStudents.length > 0 ? (extractedClass || userRole) : selectedClass; 
+                const safeAuthor = finalAuthor.replace(/[\/\.#$\[\]]/g, '-'); 
+                const generatedReportId = `rep_${safeAuthor}_${title}_${new Date().getTime()}`;
                 const signatureBase64 = canvasRef.current ? canvasRef.current.toDataURL("image/png") : null;
-                const payload = { reportId: generatedReportId, author: finalAuthor, signerName: signerName, userRole: userRole, type: title, timestamp: new Date().getTime(), totalStudents: classStudents.length, totalPresent: totalPresent, rows: finalRows, signature: signatureBase64 };
+                
+                const payload = { 
+                    reportId: generatedReportId, 
+                    author: finalAuthor, 
+                    signerName: signerName, 
+                    userRole: userRole, 
+                    type: title, 
+                    timestamp: new Date().getTime(), 
+                    totalStudents: classStudents.length, 
+                    totalPresent: totalPresent, 
+                    rows: finalRows, 
+                    signature: signatureBase64 
+                };
+                
                 try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch (e) {}
-                setSubmittedReport(payload); setQrPayload(compressReportForQR(payload)); setShowReportQR(true); setIsSubmitting(false);
+                
+                setSubmittedReport(payload); 
+                setQrPayload(compressReportForQR(payload)); 
+                setShowReportQR(true); 
+                setIsSubmitting(false);
             };
 
             const allClassesList = [...new Set(students.map(s => s.className?.trim()).filter(Boolean))].sort();
 
             return (
                 <div className={`min-h-screen pb-24 ${isEmergencyForm ? 'bg-red-950' : 'bg-[#0f172a]'} no-print`}>
-                    <header className={`${isEmergencyForm ? 'bg-red-900 border-red-500' : 'bg-slate-800 border-amber-400'} border-b-4 text-white p-6 sticky top-0 z-40 rounded-b-3xl shadow-lg`}><div className="flex justify-between items-center"><div><h1 className="text-2xl font-black text-amber-400">{title}</h1><h2 className="text-sm font-bold text-slate-300">מדווח: {userRole}</h2></div><button onClick={() => setView(userType === 'madrich' ? "madrich_dash" : "kadar_menu")} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl font-bold text-sm shadow transition">חזור</button></div></header>
+                    <header className={`${isEmergencyForm ? 'bg-red-900 border-red-500' : 'bg-slate-800 border-amber-400'} border-b-4 text-white p-6 sticky top-0 z-40 rounded-b-3xl shadow-lg`}>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h1 className="text-2xl font-black text-amber-400">{title}</h1>
+                                <h2 className="text-sm font-bold text-slate-300">מדווח: {userRole}</h2>
+                            </div>
+                            <button onClick={() => setView(userType === 'madrich' ? "madrich_dash" : "kadar_menu")} className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl font-bold text-sm shadow transition">חזור</button>
+                        </div>
+                    </header>
                     <main className="p-4 space-y-4 mt-2 max-w-md mx-auto">
                         {exactMatchStudents.length === 0 && (
-                            <div className="modern-card p-6 border-2 border-amber-500 mb-6 bg-slate-800 text-center"><h3 className="font-bold text-amber-400 mb-2">לא זוהתה כיתה אוטומטית</h3><p className="text-slate-300 text-sm mb-4">המערכת לא הצליחה לחלץ כיתה. בחר:</p><select className="w-full p-4 bg-slate-700 border border-slate-600 rounded-xl text-white font-bold outline-none" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}><option value="">-- בחר כיתה --</option>{allClassesList.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                            <div className="modern-card p-6 border-2 border-amber-500 mb-6 bg-slate-800 text-center">
+                                <h3 className="font-bold text-amber-400 mb-2">לא זוהתה כיתה אוטומטית</h3>
+                                <p className="text-slate-300 text-sm mb-4">המערכת לא הצליחה לחלץ כיתה. בחר:</p>
+                                <select className="w-full p-4 bg-slate-700 border border-slate-600 rounded-xl text-white font-bold outline-none" value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)}>
+                                    <option value="">-- בחר כיתה --</option>
+                                    {allClassesList.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
                         )}
                         {classStudents.map(s => {
-                            const rec = formState[s.id] || { status: false, note: '', customNote: '' }; const notesOptions = isMorning ? NOTES_MORNING : NOTES_PRESENCE; let isAutoPresent = isMorning && MORNING_COUNTS_AS_PRESENT.includes(rec.note); const boxColor = (rec.status || isAutoPresent) ? 'border-emerald-500' : 'border-slate-700';
+                            const rec = formState[s.id] || { status: false, note: '', customNote: '' }; 
+                            const notesOptions = isMorning ? NOTES_MORNING : NOTES_PRESENCE; 
+                            let isAutoPresent = isMorning && MORNING_COUNTS_AS_PRESENT.includes(rec.note); 
+                            const boxColor = (rec.status || isAutoPresent) ? 'border-emerald-500' : 'border-slate-700';
+                            
                             return (
                                 <div key={s.id} className={`bg-slate-800 p-5 rounded-2xl shadow-sm border-r-4 ${boxColor} flex flex-col gap-3 transition-colors`}>
-                                    <div className="flex justify-between items-center"><span className="font-bold text-lg text-white">{s.lastName} {s.firstName}</span><button onClick={() => handleToggle(s.id)} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center font-black text-2xl transition-all shadow-sm ${rec.status ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>{rec.status ? '✓' : ''}</button></div>
-                                    <select value={rec.note} onChange={(e) => handleNote(s.id, e.target.value)} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-sm font-bold text-white outline-none focus:border-amber-400"><option value="">-- בחר הערה (לא חובה) --</option>{notesOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}{isMorning && <option value="אחר (ידני)">הערה ידנית...</option>}</select>
-                                    {rec.note === 'אחר (ידני)' && <input type="text" placeholder="הקלד הערה ידנית..." value={rec.customNote} onChange={e => setFormState({...formState, [s.id]: {...rec, customNote: e.target.value}})} className="w-full p-3 border border-slate-600 rounded-xl bg-slate-700 text-white font-bold outline-none focus:border-amber-400 text-sm" />}
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-bold text-lg text-white">{s.lastName} {s.firstName}</span>
+                                        <button onClick={() => handleToggle(s.id)} className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center font-black text-2xl transition-all shadow-sm ${rec.status ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-500'}`}>
+                                            {rec.status ? '✓' : ''}
+                                        </button>
+                                    </div>
+                                    <select value={rec.note} onChange={(e) => handleNote(s.id, e.target.value)} className="w-full p-3 bg-slate-700 border border-slate-600 rounded-xl text-sm font-bold text-white outline-none focus:border-amber-400">
+                                        <option value="">-- בחר הערה (לא חובה) --</option>
+                                        {notesOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        {isMorning && <option value="אחר (ידני)">הערה ידנית...</option>}
+                                    </select>
+                                    {rec.note === 'אחר (ידני)' && (
+                                        <input type="text" placeholder="הקלד הערה ידנית..." value={rec.customNote} onChange={e => setFormState({...formState, [s.id]: {...rec, customNote: e.target.value}})} className="w-full p-3 border border-slate-600 rounded-xl bg-slate-700 text-white font-bold outline-none focus:border-amber-400 text-sm" />
+                                    )}
                                 </div>
                             );
                         })}
                         {classStudents.length > 0 && (
-                            <div className="modern-card p-6 mt-6 border-t-4 border-amber-400"><label className="text-sm font-bold text-slate-300 mb-2 block">שם ממלא הדו"ח (חובה):</label><input className="w-full p-4 bg-slate-700 border border-slate-600 text-white rounded-xl font-bold mb-4 outline-none focus:border-amber-400" placeholder="לדוגמה: ישראל ישראלי..." value={signerName} onChange={e => setSignerName(e.target.value)} /><label className="text-sm font-bold text-slate-300 mb-2 block">חתימה (צייר כאן):</label><canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2 mx-auto" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /><button onClick={clearSignature} className="text-sm text-red-400 hover:text-red-300 font-bold underline text-center block w-full">נקה חתימה</button></div>
+                            <div className="modern-card p-6 mt-6 border-t-4 border-amber-400">
+                                <label className="text-sm font-bold text-slate-300 mb-2 block">שם ממלא הדו"ח (חובה):</label>
+                                <input className="w-full p-4 bg-slate-700 border border-slate-600 text-white rounded-xl font-bold mb-4 outline-none focus:border-amber-400" placeholder="לדוגמה: ישראל ישראלי..." value={signerName} onChange={e => setSignerName(e.target.value)} />
+                                <label className="text-sm font-bold text-slate-300 mb-2 block">חתימה (צייר כאן):</label>
+                                <canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2 mx-auto" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
+                                <button onClick={clearSignature} className="text-sm text-red-400 hover:text-red-300 font-bold underline text-center block w-full">נקה חתימה</button>
+                            </div>
                         )}
                     </main>
-                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800 border-t border-slate-700"><button disabled={isSubmitting || classStudents.length === 0} onClick={finishForm} className="w-full btn-gold py-4 rounded-xl font-black text-xl shadow-lg disabled:opacity-50">הפק ושלח דו"ח</button></div>
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800 border-t border-slate-700">
+                        <button disabled={isSubmitting || classStudents.length === 0} onClick={finishForm} className="w-full btn-gold py-4 rounded-xl font-black text-xl shadow-lg disabled:opacity-50">הפק ושלח דו"ח</button>
+                    </div>
                     {showReportQR && (
                         <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
-                            <h2 className="text-3xl font-black text-amber-400 mb-2">הדו"ח הוגש בהצלחה!</h2><p className="text-slate-300 text-lg font-bold mb-4">{isEmergencyForm ? 'הדו"ח הועבר לחפ"ק.' : 'הדו"ח סונכרן בענן.'}</p>
-                            {isPDFNeeded && <div className="mb-8 w-full max-w-xs"><button onClick={() => setShowPDFModal(true)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-lg shadow-lg transition">📄 הצג והורד כ-PDF</button></div>}
-                            <div className="bg-white p-4 rounded-3xl shadow-2xl mb-8 border-4 border-amber-400"><img src={generateQR(qrPayload)} alt="QR Code" className="mx-auto w-full max-w-[350px] object-contain" /></div>
+                            <h2 className="text-3xl font-black text-amber-400 mb-2">הדו"ח הוגש בהצלחה!</h2>
+                            <p className="text-slate-300 text-lg font-bold mb-4">{isEmergencyForm ? 'הדו"ח הועבר לחפ"ק.' : 'הדו"ח סונכרן בענן.'}</p>
+                            {isPDFNeeded && (
+                                <div className="mb-8 w-full max-w-xs">
+                                    <button onClick={() => setShowPDFModal(true)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-lg shadow-lg transition">📄 הצג והורד כ-PDF</button>
+                                </div>
+                            )}
+                            <div className="bg-white p-4 rounded-3xl shadow-2xl mb-8 border-4 border-amber-400">
+                                <img src={generateQR(qrPayload)} alt="QR Code" className="mx-auto w-full max-w-[350px] object-contain" />
+                            </div>
                             <button onClick={() => { setShowReportQR(false); setView(userType === 'madrich' ? "madrich_dash" : "kadar_menu"); }} className="w-full max-w-xs bg-slate-700 hover:bg-slate-600 py-4 rounded-xl font-black text-white text-xl shadow-lg transition">סיום</button>
                         </div>
                     )}
@@ -521,92 +805,370 @@
         const KadarMenu = ({ userRole, userType, isEmergency, setView, handleLogout }) => {
             if (isEmergency && userType === 'kadar') {
                 return (
-                    <div className="min-h-screen bg-red-950 p-6 flex flex-col items-center justify-center"><div className="bg-red-900 text-white p-8 rounded-3xl shadow-2xl text-center border-2 border-red-500 w-full max-w-sm"><h1 className="text-4xl font-black mb-4 animate-pulse">🚨 חירום 🚨</h1><button onClick={() => setView("kadar_form_emergency")} className="w-full bg-white text-red-700 py-5 rounded-2xl font-black text-2xl shadow-lg">מילוי דו"ח חירום</button></div></div>
+                    <div className="min-h-screen bg-red-950 p-6 flex flex-col items-center justify-center">
+                        <div className="bg-red-900 text-white p-8 rounded-3xl shadow-2xl text-center border-2 border-red-500 w-full max-w-sm">
+                            <h1 className="text-4xl font-black mb-4 animate-pulse">🚨 חירום 🚨</h1>
+                            <button onClick={() => setView("kadar_form_emergency")} className="w-full bg-white text-red-700 py-5 rounded-2xl font-black text-2xl shadow-lg">מילוי דו"ח חירום</button>
+                        </div>
+                    </div>
                 );
             }
             return (
                 <div className="min-h-screen p-6 no-print">
-                    <header className="flex justify-between items-center mb-10 bg-slate-800 p-6 rounded-3xl shadow-lg border-b-4 border-amber-400"><div><h2 className="text-xl font-black text-white">{userRole}</h2><h3 className="text-slate-400 font-bold text-sm mt-1">בחירת פעולה</h3></div><button onClick={handleLogout} className="text-slate-300 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl font-bold transition">התנתק</button></header>
+                    <header className="flex justify-between items-center mb-10 bg-slate-800 p-6 rounded-3xl shadow-lg border-b-4 border-amber-400">
+                        <div>
+                            <h2 className="text-xl font-black text-white">{userRole}</h2>
+                            <h3 className="text-slate-400 font-bold text-sm mt-1">בחירת פעולה</h3>
+                        </div>
+                        <button onClick={handleLogout} className="text-slate-300 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl font-bold transition">התנתק</button>
+                    </header>
                     <div className="grid gap-4 max-w-md mx-auto">
-                        <button onClick={() => setView("kadar_form_boker")} className="modern-card p-5 text-right border-r-4 border-blue-500"><h3 className="text-lg font-bold text-white mb-1">☀️ מסדר בוקר</h3></button>
-                        <button onClick={() => setView("kadar_form_knisa")} className="modern-card p-5 text-right border-r-4 border-emerald-500"><h3 className="text-lg font-bold text-white mb-1">🚶‍♂️ מסדר כניסה</h3></button>
-                        <button onClick={() => setView("kadar_form_nochachut")} className="modern-card p-5 text-right border-r-4 border-purple-500"><h3 className="text-lg font-bold text-white mb-1">📝 דו"ח נוכחות</h3></button>
-                        <button onClick={() => setView("kadar_form_kibui_orot")} className="modern-card p-5 text-right border-r-4 border-indigo-500"><h3 className="text-lg font-bold text-white mb-1">🌙 מסדר כיבוי אורות</h3></button>
-                        <button onClick={() => setView("kadar_exit_original")} className="btn-navy p-5 rounded-2xl shadow-xl text-right mt-2 border-b-4 border-amber-400"><h3 className="text-lg font-black text-amber-400 mb-1">🚪 מסדר יציאה הביתה</h3></button>
+                        <button onClick={() => setView("kadar_form_boker")} className="modern-card p-5 text-right border-r-4 border-blue-500">
+                            <h3 className="text-lg font-bold text-white mb-1">☀️ מסדר בוקר</h3>
+                        </button>
+                        <button onClick={() => setView("kadar_form_knisa")} className="modern-card p-5 text-right border-r-4 border-emerald-500">
+                            <h3 className="text-lg font-bold text-white mb-1">🚶‍♂️ מסדר כניסה</h3>
+                        </button>
+                        <button onClick={() => setView("kadar_form_nochachut")} className="modern-card p-5 text-right border-r-4 border-purple-500">
+                            <h3 className="text-lg font-bold text-white mb-1">📝 דו"ח נוכחות</h3>
+                        </button>
+                        <button onClick={() => setView("kadar_form_kibui_orot")} className="modern-card p-5 text-right border-r-4 border-indigo-500">
+                            <h3 className="text-lg font-bold text-white mb-1">🌙 מסדר כיבוי אורות</h3>
+                        </button>
+                        <button onClick={() => setView("kadar_exit_original")} className="btn-navy p-5 rounded-2xl shadow-xl text-right mt-2 border-b-4 border-amber-400">
+                            <h3 className="text-lg font-black text-amber-400 mb-1">🚪 מסדר יציאה הביתה</h3>
+                        </button>
                     </div>
                 </div>
             );
         };
 
         const OriginalExitApp = ({ globalStudents, userRole, goBack }) => {
-            const [formData, setFormData] = useState({ firstName: '', lastName: '', className: '', major: 'מכונה' }); const [editingStudent, setEditingStudent] = useState(null); const [activeFilter, setActiveFilter] = useState({ type: 'All', value: 'All' }); const [showSignatureModal, setShowSignatureModal] = useState(false); const [isPrintMode, setIsPrintMode] = useState(false); const [signerName, setSignerName] = useState(""); const [finalSignatureImg, setFinalSignatureImg] = useState(null); const [showQR, setShowQR] = useState(false); const [qrPayload, setQrPayload] = useState(""); const canvasRef = useRef(null); const [isDrawing, setIsDrawing] = useState(false);
-            const filteredStudents = useMemo(() => { let list = [...globalStudents]; if (activeFilter.type === 'Major') list = list.filter(s => s.major === activeFilter.value); if (activeFilter.type === 'Class') list = list.filter(s => s.className === activeFilter.value); return list.sort((a, b) => (a.className || "").localeCompare(b.className || "") || (a.lastName || "").localeCompare(b.lastName || "")); }, [globalStudents, activeFilter]);
-            const classesList = useMemo(() => [...new Set(globalStudents.map(s => s.className).filter(Boolean))].sort(), [globalStudents]); const releasedOnly = useMemo(() => filteredStudents.filter(s => s.isDone), [filteredStudents]);
-            const pdfTitle = useMemo(() => { if (activeFilter.type === 'Major') return `דוח מסדר - ${activeFilter.value}`; if (activeFilter.type === 'Class') return `דוח מסדר - כיתה ${activeFilter.value}`; return "דו\"ח סיכום מסדר יציאה"; }, [activeFilter]);
+            const [formData, setFormData] = useState({ firstName: '', lastName: '', className: '', major: 'מכונה' }); 
+            const [editingStudent, setEditingStudent] = useState(null); 
+            const [activeFilter, setActiveFilter] = useState({ type: 'All', value: 'All' }); 
+            const [showSignatureModal, setShowSignatureModal] = useState(false); 
+            const [isPrintMode, setIsPrintMode] = useState(false); 
+            const [signerName, setSignerName] = useState(""); 
+            const [finalSignatureImg, setFinalSignatureImg] = useState(null); 
+            const [showQR, setShowQR] = useState(false); 
+            const [qrPayload, setQrPayload] = useState(""); 
+            
+            const canvasRef = useRef(null); 
+            const [isDrawing, setIsDrawing] = useState(false);
+            
+            const filteredStudents = useMemo(() => { 
+                let list = [...globalStudents]; 
+                if (activeFilter.type === 'Major') list = list.filter(s => s.major === activeFilter.value); 
+                if (activeFilter.type === 'Class') list = list.filter(s => s.className === activeFilter.value); 
+                return list.sort((a, b) => (a.className || "").localeCompare(b.className || "") || (a.lastName || "").localeCompare(b.lastName || "")); 
+            }, [globalStudents, activeFilter]);
+            
+            const classesList = useMemo(() => [...new Set(globalStudents.map(s => s.className).filter(Boolean))].sort(), [globalStudents]); 
+            const releasedOnly = useMemo(() => filteredStudents.filter(s => s.isDone), [filteredStudents]);
+            
+            const pdfTitle = useMemo(() => { 
+                if (activeFilter.type === 'Major') return `דוח מסדר - ${activeFilter.value}`; 
+                if (activeFilter.type === 'Class') return `דוח מסדר - כיתה ${activeFilter.value}`; 
+                return "דו\"ח סיכום מסדר יציאה"; 
+            }, [activeFilter]);
 
-            const startDrawing = (e) => { if(!canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.moveTo(offsetX, offsetY); setIsDrawing(true); };
-            const draw = (e) => { if (!isDrawing || !canvasRef.current) return; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); canvasRef.current.getContext('2d').stroke(); };
-            const stopDrawing = () => setIsDrawing(false); const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
+            const startDrawing = (e) => { 
+                if(!canvasRef.current) return; 
+                const ctx = canvasRef.current.getContext('2d'); 
+                ctx.beginPath(); 
+                ctx.lineWidth = 3; 
+                ctx.lineCap = 'round'; 
+                ctx.strokeStyle = '#000'; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                ctx.moveTo(offsetX, offsetY); 
+                setIsDrawing(true); 
+            };
+            
+            const draw = (e) => { 
+                if (!isDrawing || !canvasRef.current) return; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); 
+                canvasRef.current.getContext('2d').stroke(); 
+            };
+            
+            const stopDrawing = () => setIsDrawing(false); 
+            const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
 
-            const handleProceedToPrint = () => { if (!signerName.trim()) return alert("חובה להזין שם מלא לחתימה."); if(canvasRef.current) setFinalSignatureImg(canvasRef.current.toDataURL("image/png")); setShowSignatureModal(false); setIsPrintMode(true); setTimeout(() => { window.print(); }, 400); };
-            const handleGenerateOfflineQR = () => { if (!signerName.trim()) return alert("חובה להזין שם מלא לפני שמירת ברקוד."); const payload = { reportId: `rep_exit_${new Date().getTime()}`, author: userRole, signerName: signerName, userRole: userRole, type: pdfTitle, timestamp: new Date().getTime(), rows: releasedOnly.map(s => ({name: `${s.lastName} ${s.firstName}`, class: s.className, isPresent: true, note: 'אושר שחרור'})), totalStudents: releasedOnly.length, totalPresent: releasedOnly.length, signature: null }; setQrPayload(compressReportForQR(payload)); setShowSignatureModal(false); setShowQR(true); }
+            const handleProceedToPrint = () => { 
+                if (!signerName.trim()) return alert("חובה להזין שם מלא לחתימה."); 
+                if(canvasRef.current) setFinalSignatureImg(canvasRef.current.toDataURL("image/png")); 
+                setShowSignatureModal(false); 
+                setIsPrintMode(true); 
+                setTimeout(() => { window.print(); }, 400); 
+            };
+            
+            const handleGenerateOfflineQR = () => { 
+                if (!signerName.trim()) return alert("חובה להזין שם מלא לפני שמירת ברקוד."); 
+                const payload = { 
+                    reportId: `rep_exit_${new Date().getTime()}`, 
+                    author: userRole, 
+                    signerName: signerName, 
+                    userRole: userRole, 
+                    type: pdfTitle, 
+                    timestamp: new Date().getTime(), 
+                    rows: releasedOnly.map(s => ({name: `${s.lastName} ${s.firstName}`, class: s.className, isPresent: true, note: 'אושר שחרור'})), 
+                    totalStudents: releasedOnly.length, 
+                    totalPresent: releasedOnly.length, 
+                    signature: null 
+                }; 
+                setQrPayload(compressReportForQR(payload)); 
+                setShowSignatureModal(false); 
+                setShowQR(true); 
+            }
 
             if (isPrintMode) {
                 return (
-                    <div className="bg-slate-900 print:bg-white print:text-black min-h-screen print:min-h-0 p-4 md:p-8 print:p-0 print-modal-fix" dir="rtl"><div className="no-print mb-8 text-center p-6 rounded-2xl max-w-2xl mx-auto border-t-4 border-amber-400 bg-slate-800 shadow-2xl"><button onClick={() => window.print()} className="bg-emerald-500 text-slate-900 px-8 py-4 rounded-xl font-black text-lg">🖨️ הדפס</button><button onClick={() => setIsPrintMode(false)} className="bg-slate-700 text-white px-8 py-4 rounded-xl font-bold ml-4">חזור</button></div>
-                        <div className="official-print-wrapper shadow-2xl print:shadow-none"><div className="official-header"><div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">{pdfTitle}</h2></div></div><div className="table-container"><table className="official-table"><thead><tr><th>מס'</th><th>שם משפחה ופרטי</th><th>מגמה</th><th>כיתה</th><th>סטטוס</th></tr></thead><tbody>{releasedOnly.map((s, idx) => <tr key={s.id}><td>{idx + 1}</td><td>{s.lastName} {s.firstName}</td><td>{s.major}</td><td>{s.className}</td><td>✓ מאושר</td></tr>)}</tbody></table></div><div className="official-footer"><div className="summary-box">סה"כ מאושרים: <b>{releasedOnly.length}</b></div><div className="signature-box"><div className="signer-name">{signerName}</div><div className="signature-line">{finalSignatureImg && <img src={finalSignatureImg} />}</div><div className="signer-role">{userRole}</div></div></div></div>
+                    <div className="bg-slate-900 print:bg-white print:text-black min-h-screen print:min-h-0 p-4 md:p-8 print:p-0 print-modal-fix" dir="rtl">
+                        <div className="no-print mb-8 text-center p-6 rounded-2xl max-w-2xl mx-auto border-t-4 border-amber-400 bg-slate-800 shadow-2xl">
+                            <button onClick={() => window.print()} className="bg-emerald-500 text-slate-900 px-8 py-4 rounded-xl font-black text-lg">🖨️ הדפס</button>
+                            <button onClick={() => setIsPrintMode(false)} className="bg-slate-700 text-white px-8 py-4 rounded-xl font-bold ml-4">חזור</button>
+                        </div>
+                        <div className="official-print-wrapper shadow-2xl print:shadow-none">
+                            <div className="official-header">
+                                <div className="header-right">
+                                    <h1 className="school-name">ביה"ס לקציני ים עכו</h1>
+                                    <h2 className="report-title">{pdfTitle}</h2>
+                                </div>
+                            </div>
+                            <div className="table-container">
+                                <table className="official-table">
+                                    <thead>
+                                        <tr>
+                                            <th>מס'</th>
+                                            <th>שם משפחה ופרטי</th>
+                                            <th>מגמה</th>
+                                            <th>כיתה</th>
+                                            <th>סטטוס</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {releasedOnly.map((s, idx) => (
+                                            <tr key={s.id}>
+                                                <td>{idx + 1}</td>
+                                                <td>{s.lastName} {s.firstName}</td>
+                                                <td>{s.major}</td>
+                                                <td>{s.className}</td>
+                                                <td>✓ מאושר</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="official-footer">
+                                <div className="summary-box">סה"כ מאושרים: <b>{releasedOnly.length}</b></div>
+                                <div className="signature-box">
+                                    <div className="signer-name">{signerName}</div>
+                                    <div className="signature-line">{finalSignatureImg && <img src={finalSignatureImg} />}</div>
+                                    <div className="signer-role">{userRole}</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 );
             }
 
             return (
                 <div className="max-w-xl mx-auto pb-24 relative no-print">
-                    <header className="glass-header text-white p-6 sticky top-0 z-40 rounded-b-[40px] shadow-2xl"><div className="flex justify-between items-center mb-6"><div className="flex items-center gap-4"><div className="bg-amber-400 p-2.5 rounded-2xl text-navy"><AnchorIcon size={28} /></div><h1 className="font-black text-xl">{userRole}</h1></div><div className="flex gap-2"><button onClick={() => setShowSignatureModal(true)} className="bg-amber-500 text-navy px-4 py-2 rounded-xl font-black text-[10px]">סיום</button><button onClick={goBack} className="p-2.5 bg-white/10 rounded-xl">✕</button></div></div>
-                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1"><button onClick={() => setActiveFilter({type:'All', value:'All'})} className={`px-4 py-1.5 rounded-full text-[11px] filter-btn ${activeFilter.type === 'All' ? 'active-filter' : ''}`}>הכל</button></div>
+                    <header className="glass-header text-white p-6 sticky top-0 z-40 rounded-b-[40px] shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-4">
+                                <div className="bg-amber-400 p-2.5 rounded-2xl text-navy"><AnchorIcon size={28} /></div>
+                                <h1 className="font-black text-xl">{userRole}</h1>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowSignatureModal(true)} className="bg-amber-500 text-navy px-4 py-2 rounded-xl font-black text-[10px]">סיום</button>
+                                <button onClick={goBack} className="p-2.5 bg-white/10 rounded-xl">✕</button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <button onClick={() => setActiveFilter({type:'All', value:'All'})} className={`px-4 py-1.5 rounded-full text-[11px] filter-btn ${activeFilter.type === 'All' ? 'active-filter' : ''}`}>הכל</button>
+                        </div>
                     </header>
                     <main className="p-5 space-y-6">
-                        <section className="modern-card p-6 border-b-4 border-amber-400"><div className="grid grid-cols-2 gap-3 mb-3"><input className="p-4 bg-slate-700 text-white rounded-xl" placeholder="שם" value={editingStudent ? editingStudent.firstName : formData.firstName} onChange={e => editingStudent ? setEditingStudent({...editingStudent, firstName: e.target.value}) : setFormData({...formData, firstName: e.target.value})} /><input className="p-4 bg-slate-700 text-white rounded-xl" placeholder="משפחה" value={editingStudent ? editingStudent.lastName : formData.lastName} onChange={e => editingStudent ? setEditingStudent({...editingStudent, lastName: e.target.value}) : setFormData({...formData, lastName: e.target.value})} /></div><button onClick={() => { if(editingStudent) { database.ref(`students/${editingStudent.id}`).update(editingStudent); setEditingStudent(null); } else { database.ref('students').push({...formData, isDone: false, status: 'ממתין'}); } }} className="w-full btn-gold py-4 rounded-xl font-black">{editingStudent ? 'שמור' : 'הוסף'}</button></section>
-                        <div className="space-y-4">{filteredStudents.filter(s => !s.isDone).map(s => (<div key={s.id} className="modern-card p-5 border-r-[6px] border-amber-400 flex flex-col gap-4"><div className="flex justify-between"><div onClick={() => setEditingStudent(s)}><div className="font-extrabold text-xl text-white">{s.firstName} {s.lastName}</div></div><button onClick={() => database.ref(`students/${s.id}`).update({isDone: true, status: s.status === 'ממתין' ? 'נוכח' : s.status})} className="bg-emerald-600 text-white px-8 py-3.5 rounded-xl font-black text-xs">שחרר ✓</button></div></div>))}</div>
+                        <section className="modern-card p-6 border-b-4 border-amber-400">
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                <input className="p-4 bg-slate-700 text-white rounded-xl" placeholder="שם" value={editingStudent ? editingStudent.firstName : formData.firstName} onChange={e => editingStudent ? setEditingStudent({...editingStudent, firstName: e.target.value}) : setFormData({...formData, firstName: e.target.value})} />
+                                <input className="p-4 bg-slate-700 text-white rounded-xl" placeholder="משפחה" value={editingStudent ? editingStudent.lastName : formData.lastName} onChange={e => editingStudent ? setEditingStudent({...editingStudent, lastName: e.target.value}) : setFormData({...formData, lastName: e.target.value})} />
+                            </div>
+                            <button onClick={() => { if(editingStudent) { database.ref(`students/${editingStudent.id}`).update(editingStudent); setEditingStudent(null); } else { database.ref('students').push({...formData, isDone: false, status: 'ממתין'}); } }} className="w-full btn-gold py-4 rounded-xl font-black">{editingStudent ? 'שמור' : 'הוסף'}</button>
+                        </section>
+                        <div className="space-y-4">
+                            {filteredStudents.filter(s => !s.isDone).map(s => (
+                                <div key={s.id} className="modern-card p-5 border-r-[6px] border-amber-400 flex flex-col gap-4">
+                                    <div className="flex justify-between">
+                                        <div onClick={() => setEditingStudent(s)}>
+                                            <div className="font-extrabold text-xl text-white">{s.firstName} {s.lastName}</div>
+                                        </div>
+                                        <button onClick={() => database.ref(`students/${s.id}`).update({isDone: true, status: s.status === 'ממתין' ? 'נוכח' : s.status})} className="bg-emerald-600 text-white px-8 py-3.5 rounded-xl font-black text-xs">שחרר ✓</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </main>
                     {showSignatureModal && (
-                        <div className="fixed inset-0 bg-slate-900/95 z-[9999] flex items-center justify-center p-4"><div className="bg-slate-800 w-full max-w-sm rounded-3xl p-6 relative"><button onClick={() => setShowSignatureModal(false)} className="absolute top-4 left-4 text-white">✕</button><h3 className="text-2xl font-black text-center mb-6 text-white">סיום</h3><input className="w-full p-4 bg-slate-700 text-white rounded-xl mb-4" placeholder="שם חותם" value={signerName} onChange={e => setSignerName(e.target.value)} /><canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /><button onClick={handleProceedToPrint} className="w-full btn-gold py-4 rounded-xl font-black mt-4">📄 הפק PDF</button></div></div>
+                        <div className="fixed inset-0 bg-slate-900/95 z-[9999] flex items-center justify-center p-4">
+                            <div className="bg-slate-800 w-full max-w-sm rounded-3xl p-6 relative">
+                                <button onClick={() => setShowSignatureModal(false)} className="absolute top-4 left-4 text-white">✕</button>
+                                <h3 className="text-2xl font-black text-center mb-6 text-white">סיום</h3>
+                                <input className="w-full p-4 bg-slate-700 text-white rounded-xl mb-4" placeholder="שם חותם" value={signerName} onChange={e => setSignerName(e.target.value)} />
+                                <canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
+                                <button onClick={handleProceedToPrint} className="w-full btn-gold py-4 rounded-xl font-black mt-4">📄 הפק PDF</button>
+                            </div>
+                        </div>
                     )}
                 </div>
             );
         };
 
         const AbBayitView = ({ userRole, handleLogout }) => {
-            const [rNum, setRNum] = useState(""); const [checks, setChecks] = useState({}); const [reports, setReports] = useState([]); const [isPrint, setIsPrint] = useState(false); const [signerName, setSignerName] = useState(""); const [finalSignatureImg, setFinalSignatureImg] = useState(null); const canvasRef = useRef(null); const [isDrawing, setIsDrawing] = useState(false);
-            const startDrawing = (e) => { if(!canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.moveTo(offsetX, offsetY); setIsDrawing(true); };
-            const draw = (e) => { if (!isDrawing || !canvasRef.current) return; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); canvasRef.current.getContext('2d').stroke(); };
-            const stopDrawing = () => setIsDrawing(false); const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
-            const nextRoom = () => { if(!rNum) return alert("חובה להזין חדר"); setReports([...reports, { room: rNum, checks: checks }]); setRNum(""); setChecks({}); };
-            const handlePrint = () => { if(reports.length===0) return; if(canvasRef.current) setFinalSignatureImg(canvasRef.current.toDataURL("image/png")); setIsPrint(true); };
+            const [rNum, setRNum] = useState(""); 
+            const [checks, setChecks] = useState({}); 
+            const [reports, setReports] = useState([]); 
+            const [isPrint, setIsPrint] = useState(false); 
+            const [signerName, setSignerName] = useState(""); 
+            const [finalSignatureImg, setFinalSignatureImg] = useState(null); 
+            
+            const canvasRef = useRef(null); 
+            const [isDrawing, setIsDrawing] = useState(false);
+            
+            const startDrawing = (e) => { 
+                if(!canvasRef.current) return; 
+                const ctx = canvasRef.current.getContext('2d'); 
+                ctx.beginPath(); 
+                ctx.lineWidth = 3; 
+                ctx.lineCap = 'round'; 
+                ctx.strokeStyle = '#000'; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                ctx.moveTo(offsetX, offsetY); 
+                setIsDrawing(true); 
+            };
+            
+            const draw = (e) => { 
+                if (!isDrawing || !canvasRef.current) return; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); 
+                canvasRef.current.getContext('2d').stroke(); 
+            };
+            
+            const stopDrawing = () => setIsDrawing(false); 
+            const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
+            
+            const nextRoom = () => { 
+                if(!rNum) return alert("חובה להזין חדר"); 
+                setReports([...reports, { room: rNum, checks: checks }]); 
+                setRNum(""); 
+                setChecks({}); 
+            };
+            
+            const handlePrint = () => { 
+                if(reports.length===0) return; 
+                if(canvasRef.current) setFinalSignatureImg(canvasRef.current.toDataURL("image/png")); 
+                setIsPrint(true); 
+            };
 
             if (isPrint) {
                 return (
-                    <div className="bg-slate-900 print:bg-white print:text-black min-h-screen print:min-h-0 p-4 print:p-0 print-modal-fix" dir="rtl"><div className="no-print mb-6 text-center"><button onClick={() => setTimeout(() => window.print(), 200)} className="bg-emerald-500 text-slate-900 px-6 py-3 rounded-xl font-black">🖨️ הדפס</button><button onClick={()=>setIsPrint(false)} className="bg-slate-700 text-white px-6 py-3 rounded-xl ml-2">חזור</button></div><div className="official-print-wrapper"><div className="official-header"><div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1></div></div><table className="official-table mt-4"><thead><tr><th>מספר חדר</th><th>ליקויים</th></tr></thead><tbody>{reports.map((r, i) => { const badChecks = Object.keys(r.checks).filter(k => r.checks[k]); return <tr key={i}><td>{r.room}</td><td>{badChecks.length > 0 ? badChecks.join(", ") : "✓ תקין"}</td></tr>; })}</tbody></table></div></div>
+                    <div className="bg-slate-900 print:bg-white print:text-black min-h-screen print:min-h-0 p-4 print:p-0 print-modal-fix" dir="rtl">
+                        <div className="no-print mb-6 text-center">
+                            <button onClick={() => setTimeout(() => window.print(), 200)} className="bg-emerald-500 text-slate-900 px-6 py-3 rounded-xl font-black">🖨️ הדפס</button>
+                            <button onClick={()=>setIsPrint(false)} className="bg-slate-700 text-white px-6 py-3 rounded-xl ml-2">חזור</button>
+                        </div>
+                        <div className="official-print-wrapper">
+                            <div className="official-header">
+                                <div className="header-right">
+                                    <h1 className="school-name">ביה"ס לקציני ים עכו</h1>
+                                </div>
+                            </div>
+                            <table className="official-table mt-4">
+                                <thead>
+                                    <tr>
+                                        <th>מספר חדר</th>
+                                        <th>ליקויים</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {reports.map((r, i) => { 
+                                        const badChecks = Object.keys(r.checks).filter(k => r.checks[k]); 
+                                        return (
+                                            <tr key={i}>
+                                                <td>{r.room}</td>
+                                                <td>{badChecks.length > 0 ? badChecks.join(", ") : "✓ תקין"}</td>
+                                            </tr>
+                                        ); 
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 );
             }
+            
             return (
                 <div className="min-h-screen pb-32">
-                    <header className="bg-slate-800 text-white p-6 sticky top-0 z-40 rounded-b-3xl shadow-lg flex justify-between items-center"><div><h1 className="text-2xl font-black text-amber-400">ביקורת מגורים</h1></div><button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button></header>
+                    <header className="bg-slate-800 text-white p-6 sticky top-0 z-40 rounded-b-3xl shadow-lg flex justify-between items-center">
+                        <div>
+                            <h1 className="text-2xl font-black text-amber-400">ביקורת מגורים</h1>
+                        </div>
+                        <button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button>
+                    </header>
                     <main className="p-4 max-w-md mx-auto">
-                        <div className="modern-card p-6 border-t-4 border-blue-500 mb-6"><input type="number" placeholder="חדר" value={rNum} onChange={e=>setRNum(e.target.value)} className="w-full p-5 bg-slate-700 text-white mb-6" /><div className="grid grid-cols-2 gap-3">{ROOM_CHECKS.map(opt => (<button key={opt} onClick={() => setChecks({...checks, [opt]: !checks[opt]})} className={`p-4 rounded-xl ${checks[opt] ? 'bg-red-900/50 text-red-200' : 'bg-slate-700 text-slate-300'}`}>{opt}</button>))}</div><button onClick={nextRoom} className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl">שמור חדר</button></div>
-                        <div className="modern-card p-6 border-t-4 border-amber-400"><input value={signerName} onChange={e=>setSignerName(e.target.value)} className="w-full p-4 mb-4 bg-slate-700 text-white rounded-xl" placeholder="שם ממלא הדו''ח" /><canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
+                        <div className="modern-card p-6 border-t-4 border-blue-500 mb-6">
+                            <input type="number" placeholder="חדר" value={rNum} onChange={e=>setRNum(e.target.value)} className="w-full p-5 bg-slate-700 text-white mb-6" />
+                            <div className="grid grid-cols-2 gap-3">
+                                {ROOM_CHECKS.map(opt => (
+                                    <button key={opt} onClick={() => setChecks({...checks, [opt]: !checks[opt]})} className={`p-4 rounded-xl ${checks[opt] ? 'bg-red-900/50 text-red-200' : 'bg-slate-700 text-slate-300'}`}>
+                                        {opt}
+                                    </button>
+                                ))}
+                            </div>
+                            <button onClick={nextRoom} className="w-full mt-6 bg-blue-600 text-white py-4 rounded-xl">שמור חדר</button>
+                        </div>
+                        <div className="modern-card p-6 border-t-4 border-amber-400">
+                            <input value={signerName} onChange={e=>setSignerName(e.target.value)} className="w-full p-4 mb-4 bg-slate-700 text-white rounded-xl" placeholder="שם ממלא הדו''ח" />
+                            <canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
+                        </div>
                     </main>
-                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800"><button onClick={handlePrint} className="w-full btn-gold py-4 rounded-xl font-black">הפק דו"ח</button></div>
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800">
+                        <button onClick={handlePrint} className="w-full btn-gold py-4 rounded-xl font-black">הפק דו"ח</button>
+                    </div>
                 </div>
             );
         };
 
         const KabatView = ({ userRole, isEmergency, systemAlerts, cloudReports, handleLogout }) => {
-            const activeAlerts = Object.entries(systemAlerts || {}).filter(([k,v]) => v.active); const emergencyReports = cloudReports.filter(r => r.type && r.type.includes('חירום')); const [selectedReport, setSelectedReport] = useState(null);
+            const activeAlerts = Object.entries(systemAlerts || {}).filter(([k,v]) => v.active); 
+            const emergencyReports = cloudReports.filter(r => r.type && r.type.includes('חירום')); 
+            const [selectedReport, setSelectedReport] = useState(null);
+            
             return (
-                <div className="min-h-screen pb-20"><header className="bg-slate-800 text-white p-6 rounded-b-3xl shadow-lg mb-6 flex justify-between items-center"><div><h1 className="text-2xl font-black text-amber-400">ביטחון</h1></div><button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button></header>
+                <div className="min-h-screen pb-20">
+                    <header className="bg-slate-800 text-white p-6 rounded-b-3xl shadow-lg mb-6 flex justify-between items-center">
+                        <div>
+                            <h1 className="text-2xl font-black text-amber-400">ביטחון</h1>
+                        </div>
+                        <button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button>
+                    </header>
                     <div className="p-4 max-w-xl mx-auto space-y-6">
                         <EmergencyComms userRole={userRole} />
-                        <div className={`p-6 rounded-3xl ${isEmergency ? 'bg-red-900' : 'bg-slate-800'}`}><button onClick={() => database.ref('system/emergency').set(!isEmergency)} className={`w-full py-5 rounded-2xl font-black text-xl ${isEmergency ? 'bg-white text-red-700' : 'bg-red-600 text-white'}`}>{isEmergency ? 'חזל"ש' : 'הפעל חירום'}</button></div>
+                        <div className={`p-6 rounded-3xl ${isEmergency ? 'bg-red-900' : 'bg-slate-800'}`}>
+                            <button onClick={() => database.ref('system/emergency').set(!isEmergency)} className={`w-full py-5 rounded-2xl font-black text-xl ${isEmergency ? 'bg-white text-red-700' : 'bg-red-600 text-white'}`}>
+                                {isEmergency ? 'חזל"ש' : 'הפעל חירום'}
+                            </button>
+                        </div>
                     </div>
                     {selectedReport && <ReportViewerModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
                 </div>
@@ -614,58 +1176,199 @@
         };
 
         const OfficerView = ({ userRole, accessCodes, offlineReports, setOfflineReports, cloudReports, handleLogout }) => {
-            const officerReports = cloudReports.filter(r => r.type && !r.type.includes('חירום')); const [selectedReport, setSelectedReport] = useState(null);
+            const officerReports = cloudReports.filter(r => r.type && !r.type.includes('חירום')); 
+            const [selectedReport, setSelectedReport] = useState(null);
+            
             return (
-                <div className="min-h-screen pb-20"><header className="bg-slate-800 text-white p-6 flex justify-between"><div><h1 className="text-2xl font-black text-amber-400">קצין תורן</h1></div><button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">יציאה</button></header>
-                    <div className="p-4 max-w-xl mx-auto space-y-6"><div className="modern-card p-6 border-t-4 border-purple-500"><div className="max-h-60 overflow-y-auto space-y-2">{officerReports.map(r => (<div key={r.reportId} className="bg-slate-700 p-3 flex justify-between"><div className="text-white">{r.author}</div><button onClick={() => setSelectedReport(r)} className="bg-slate-800 text-white px-3 py-1 rounded">צפה</button></div>))}</div></div></div>
+                <div className="min-h-screen pb-20">
+                    <header className="bg-slate-800 text-white p-6 flex justify-between">
+                        <div>
+                            <h1 className="text-2xl font-black text-amber-400">קצין תורן</h1>
+                        </div>
+                        <button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">יציאה</button>
+                    </header>
+                    <div className="p-4 max-w-xl mx-auto space-y-6">
+                        <div className="modern-card p-6 border-t-4 border-purple-500">
+                            <div className="max-h-60 overflow-y-auto space-y-2">
+                                {officerReports.map(r => (
+                                    <div key={r.reportId} className="bg-slate-700 p-3 flex justify-between">
+                                        <div className="text-white">{r.author}</div>
+                                        <button onClick={() => setSelectedReport(r)} className="bg-slate-800 text-white px-3 py-1 rounded">צפה</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                     {selectedReport && <ReportViewerModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
                 </div>
             );
         };
 
         const KmzView = ({ userRole, handleLogout }) => {
-            const [patients, setPatients] = useState([]); const [form, setForm] = useState({name:'', class:'', timeIn:''}); const [showQR, setShowQR] = useState(false); const [qrPayload, setQrPayload] = useState(""); const [signerName, setSignerName] = useState(""); const canvasRef = useRef(null); const [isDrawing, setIsDrawing] = useState(false);
-            const startDrawing = (e) => { if(!canvasRef.current) return; const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = '#000'; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; ctx.moveTo(offsetX, offsetY); setIsDrawing(true); };
-            const draw = (e) => { if (!isDrawing || !canvasRef.current) return; const rect = canvasRef.current.getBoundingClientRect(); const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); canvasRef.current.getContext('2d').stroke(); };
-            const stopDrawing = () => setIsDrawing(false); const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
-            const addPatient = () => { if(!form.name) return; setPatients([...patients, {...form, id: generateRandomCode(), timeOut: ''}]); setForm({name:'', class:'', timeIn:''}); };
-            const finish = async () => { const payload = { reportId: 'rep_מרפאה', author: userRole, signerName: signerName, userRole: userRole, type: 'kmz', timestamp: new Date().getTime(), rows: patients, signature: canvasRef.current ? canvasRef.current.toDataURL("image/png") : null }; try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch(e) {} setQrPayload(compressReportForQR(payload)); setShowQR(true); setPatients([]); };
+            const [patients, setPatients] = useState([]); 
+            const [form, setForm] = useState({name:'', class:'', timeIn:''}); 
+            const [showQR, setShowQR] = useState(false); 
+            const [qrPayload, setQrPayload] = useState(""); 
+            const [signerName, setSignerName] = useState(""); 
+            
+            const canvasRef = useRef(null); 
+            const [isDrawing, setIsDrawing] = useState(false);
+            
+            const startDrawing = (e) => { 
+                if(!canvasRef.current) return; 
+                const ctx = canvasRef.current.getContext('2d'); 
+                ctx.beginPath(); 
+                ctx.lineWidth = 3; 
+                ctx.lineCap = 'round'; 
+                ctx.strokeStyle = '#000'; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                ctx.moveTo(offsetX, offsetY); 
+                setIsDrawing(true); 
+            };
+            
+            const draw = (e) => { 
+                if (!isDrawing || !canvasRef.current) return; 
+                const rect = canvasRef.current.getBoundingClientRect(); 
+                const offsetX = (e.touches && e.touches[0]) ? e.touches[0].clientX - rect.left : e.nativeEvent.offsetX; 
+                const offsetY = (e.touches && e.touches[0]) ? e.touches[0].clientY - rect.top : e.nativeEvent.offsetY; 
+                canvasRef.current.getContext('2d').lineTo(offsetX, offsetY); 
+                canvasRef.current.getContext('2d').stroke(); 
+            };
+            
+            const stopDrawing = () => setIsDrawing(false); 
+            const clearSignature = () => { if(canvasRef.current) canvasRef.current.getContext('2d').clearRect(0, 0, 320, 150); };
+            
+            const addPatient = () => { 
+                if(!form.name) return; 
+                setPatients([...patients, {...form, id: generateRandomCode(), timeOut: ''}]); 
+                setForm({name:'', class:'', timeIn:''}); 
+            };
+            
+            const finish = async () => { 
+                const payload = { 
+                    reportId: 'rep_מרפאה', 
+                    author: userRole, 
+                    signerName: signerName, 
+                    userRole: userRole, 
+                    type: 'kmz', 
+                    timestamp: new Date().getTime(), 
+                    rows: patients, 
+                    signature: canvasRef.current ? canvasRef.current.toDataURL("image/png") : null 
+                }; 
+                try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch(e) {} 
+                setQrPayload(compressReportForQR(payload)); 
+                setShowQR(true); 
+                setPatients([]); 
+            };
 
             return (
-                <div className="min-h-screen pb-24"><header className="bg-emerald-900 text-white p-6 flex justify-between"><div><h1 className="text-2xl font-black">מרפאה</h1></div><button onClick={handleLogout} className="bg-emerald-800 px-3 py-1 rounded">יציאה</button></header>
-                    <main className="p-4 max-w-md mx-auto space-y-4"><div className="modern-card p-6"><input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="שם" className="w-full p-4 bg-slate-700 text-white mb-3" /><button onClick={addPatient} className="w-full bg-emerald-600 text-white py-4 rounded-xl">הוסף</button></div>
-                    {patients.length > 0 && <div className="modern-card p-6 border-t-4 border-emerald-500"><input className="w-full p-4 bg-slate-700 text-white mb-4" placeholder="שם חובש" value={signerName} onChange={e => setSignerName(e.target.value)} /><canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>}
+                <div className="min-h-screen pb-24">
+                    <header className="bg-emerald-900 text-white p-6 flex justify-between">
+                        <div>
+                            <h1 className="text-2xl font-black">מרפאה</h1>
+                        </div>
+                        <button onClick={handleLogout} className="bg-emerald-800 px-3 py-1 rounded">יציאה</button>
+                    </header>
+                    <main className="p-4 max-w-md mx-auto space-y-4">
+                        <div className="modern-card p-6">
+                            <input value={form.name} onChange={e=>setForm({...form, name:e.target.value})} placeholder="שם" className="w-full p-4 bg-slate-700 text-white mb-3" />
+                            <button onClick={addPatient} className="w-full bg-emerald-600 text-white py-4 rounded-xl">הוסף</button>
+                        </div>
+                        {patients.length > 0 && (
+                            <div className="modern-card p-6 border-t-4 border-emerald-500">
+                                <input className="w-full p-4 bg-slate-700 text-white mb-4" placeholder="שם חובש" value={signerName} onChange={e => setSignerName(e.target.value)} />
+                                <canvas ref={canvasRef} width={320} height={150} className="signature-canvas w-full mb-2" onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
+                            </div>
+                        )}
                     </main>
-                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800"><button disabled={patients.length===0} onClick={finish} className="w-full btn-gold py-4 rounded-xl">שלח</button></div>
-                    {showQR && <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center"><img src={generateQR(qrPayload)} className="bg-white p-4" /><button onClick={() => setShowQR(false)} className="mt-8 text-white">סגור</button></div>}
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-800">
+                        <button disabled={patients.length===0} onClick={finish} className="w-full btn-gold py-4 rounded-xl">שלח</button>
+                    </div>
+                    {showQR && (
+                        <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center">
+                            <img src={generateQR(qrPayload)} className="bg-white p-4" />
+                            <button onClick={() => setShowQR(false)} className="mt-8 text-white">סגור</button>
+                        </div>
+                    )}
                 </div>
             );
         };
 
         const ScannerView = ({ userRole, offlineReports, setOfflineReports, handleLogout }) => {
-            const [txt, setTxt] = useState(""); const [showQRS, setShowQRS] = useState(false);
-            const sendAlert = () => { if(!txt) return; database.ref('system/alerts').push({ text: txt, time: new Date().toLocaleTimeString('he-IL'), active: true, author: userRole }); setTxt(""); alert("ההודעה שודרה."); };
+            const [txt, setTxt] = useState(""); 
+            const [showQRS, setShowQRS] = useState(false);
+            
+            const sendAlert = () => { 
+                if(!txt) return; 
+                database.ref('system/alerts').push({ 
+                    text: txt, 
+                    time: new Date().toLocaleTimeString('he-IL'), 
+                    active: true, 
+                    author: userRole 
+                }); 
+                setTxt(""); 
+                alert("ההודעה שודרה."); 
+            };
+            
             return (
-                <div className="min-h-screen pb-20"><header className="mb-8 bg-slate-800 p-6 flex justify-between"><h2 className="text-2xl text-white">{userRole}</h2><button onClick={handleLogout} className="bg-slate-700 text-white px-4 py-2 rounded-xl">התנתק</button></header><div className="p-4 max-w-md mx-auto space-y-6"><EmergencyComms userRole={userRole} /><div className="modern-card p-6"><input value={txt} onChange={e=>setTxt(e.target.value)} placeholder="דיווח..." className="w-full p-4 bg-slate-700 text-white mb-4" /><button onClick={sendAlert} className="w-full btn-gold py-4 rounded-xl">שדר</button></div></div></div>
+                <div className="min-h-screen pb-20">
+                    <header className="mb-8 bg-slate-800 p-6 flex justify-between">
+                        <h2 className="text-2xl text-white">{userRole}</h2>
+                        <button onClick={handleLogout} className="bg-slate-700 text-white px-4 py-2 rounded-xl">התנתק</button>
+                    </header>
+                    <div className="p-4 max-w-md mx-auto space-y-6">
+                        <EmergencyComms userRole={userRole} />
+                        <div className="modern-card p-6">
+                            <input value={txt} onChange={e=>setTxt(e.target.value)} placeholder="דיווח..." className="w-full p-4 bg-slate-700 text-white mb-4" />
+                            <button onClick={sendAlert} className="w-full btn-gold py-4 rounded-xl">שדר</button>
+                        </div>
+                    </div>
+                </div>
             );
         };
 
         const MedicView = ({ userRole, userType, offlineReports, setOfflineReports, handleLogout }) => {
-            const [showQRS, setShowQRS] = useState(false); const [showQRTransfer, setShowQRTransfer] = useState(false);
+            const [showQRS, setShowQRS] = useState(false); 
+            const [showQRTransfer, setShowQRTransfer] = useState(false);
+            
             return (
-                <div className="min-h-screen pb-20"><header className="mb-8 bg-slate-800 p-6 flex justify-between"><h2 className="text-2xl text-white">{userRole}</h2><button onClick={handleLogout} className="bg-slate-700 text-white px-4 py-2">התנתק</button></header><div className="p-4 max-w-md mx-auto space-y-6"><EmergencyComms userRole={userRole} /><div className="modern-card p-8 text-center"><button onClick={()=>setShowQRS(true)} className="w-full bg-red-600 text-white py-4 rounded-xl">סריקה</button></div></div></div>
+                <div className="min-h-screen pb-20">
+                    <header className="mb-8 bg-slate-800 p-6 flex justify-between">
+                        <h2 className="text-2xl text-white">{userRole}</h2>
+                        <button onClick={handleLogout} className="bg-slate-700 text-white px-4 py-2">התנתק</button>
+                    </header>
+                    <div className="p-4 max-w-md mx-auto space-y-6">
+                        <EmergencyComms userRole={userRole} />
+                        <div className="modern-card p-8 text-center">
+                            <button onClick={()=>setShowQRS(true)} className="w-full bg-red-600 text-white py-4 rounded-xl">סריקה</button>
+                        </div>
+                    </div>
+                </div>
             );
         };
 
         const ManagementView = ({ userRole, students, isEmergency, systemAlerts, cloudReports, handleLogout }) => {
             const [selectedReport, setSelectedReport] = useState(null);
             return (
-                <div className="min-h-screen pb-20"><header className="mb-6 bg-slate-800 text-white p-6 flex justify-between"><h1 className="text-2xl text-amber-400">פיקוד עליון</h1><button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button></header><div className="p-4 max-w-xl mx-auto space-y-4"><div className="grid grid-cols-2 gap-4"><div className="modern-card p-6 text-center text-white"><div className="text-5xl">{students.length}</div><div>חניכים</div></div></div></div></div>
+                <div className="min-h-screen pb-20">
+                    <header className="mb-6 bg-slate-800 text-white p-6 flex justify-between">
+                        <h1 className="text-2xl text-amber-400">פיקוד עליון</h1>
+                        <button onClick={handleLogout} className="bg-slate-700 px-3 py-1 rounded">התנתק</button>
+                    </header>
+                    <div className="p-4 max-w-xl mx-auto space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="modern-card p-6 text-center text-white">
+                                <div className="text-5xl">{students.length}</div>
+                                <div>חניכים</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             );
         };
 
-        // --- ליבת האפליקציה עם מנגנון ההזדהות (Auth) ---
-       // --- ליבת האפליקציה עם מנגנון ההזדהות (Auth) מתוקן ---
         function App() {
             const [view, setView] = useState("login");
             const [userRole, setUserRole] = useState("");
@@ -682,11 +1385,10 @@
             const [offlineReports, setOfflineReports] = useState([]);
             const [cloudReports, setCloudReports] = useState([]);
 
-            // 1. התיקון: האזנה מופרדת למצב ההתחברות כדי למנוע לולאה
+            // האזנה מופרדת למצב ההתחברות כדי למנוע לולאה (God Mode Bug Fix)
             useEffect(() => {
                 const unsubscribeAuth = auth.onAuthStateChanged(user => {
                     if (user) {
-                        // הוספנו פה בדיקה: אל תנווט אלא אם המשתמש נמצא במסך ה'לוגין'
                         setView(currentView => {
                             if (currentView === "login") {
                                 if (user.uid === ADMIN_UID) {
@@ -701,25 +1403,73 @@
                                     return "officer_dash";
                                 }
                             }
-                            // אם הוא כבר בתוך המערכת ולחץ על תפקיד אחר - אל תגע!
+                            // אם המשתמש כבר מחובר ובחר תפקיד, אל תגע במסך שלו
                             return currentView; 
                         });
                     }
                 });
                 return () => unsubscribeAuth();
-            }, []); // <--- המערך הריק מבטיח שזה לא ירענן את עצמו כשתחליף תפקיד
+            }, []);
 
-            // 2. שאר ההאזנות לנתוני המערכת
+            // האזנות לנתוני המערכת מ-Firebase
             useEffect(() => {
                 const studentsRef = database.ref('students');
-                studentsRef.on('value', snap => { const data = snap.val(); if (!data) { setStudents([]); return; } const cleanList = Object.keys(data).map(k => ({ ...data[k], id: k, status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') })); setStudents(cleanList); });
-                const codesRef = database.ref('access_codes'); codesRef.on('value', snap => setAccessCodes(snap.val() || {}));
-                const emergencyRef = database.ref('system/emergency'); emergencyRef.on('value', snap => setIsEmergency(snap.val() || false));
-                const alertsRef = database.ref('system/alerts'); alertsRef.on('value', snap => { const data = snap.val() || {}; setSystemAlerts(data); if (['kabat', 'safety_comm'].includes(userType)) { const newAlerts = Object.values(data).filter(a => a.active); if (newAlerts.length > 0) { setPopupMsg(`📍 סריקה: ${newAlerts[newAlerts.length - 1].text}`); setTimeout(() => setPopupMsg(""), 5000); } } });
-                const commsRef = database.ref('system/comms'); let initialCommsLoaded = false; commsRef.once('value').then(() => initialCommsLoaded = true); commsRef.on('child_added', snap => { if (!initialCommsLoaded) return; const data = snap.val(); if (EMERGENCY_ROLES.includes(userType)) { setPopupMsg(`🔴 ${data.author}: ${data.text}`); setTimeout(() => setPopupMsg(""), 6000); } });
-                const reportsRef = database.ref('reports_cloud'); reportsRef.on('value', snap => { const data = snap.val(); if(data) { setCloudReports(Object.values(data).sort((a,b) => b.timestamp - a.timestamp)); } else { setCloudReports([]); } });
+                studentsRef.on('value', snap => { 
+                    const data = snap.val(); 
+                    if (!data) { setStudents([]); return; } 
+                    const cleanList = Object.keys(data).map(k => ({ 
+                        ...data[k], 
+                        id: k, 
+                        status: (data[k].isDone && data[k].status === 'ממתין') ? 'נוכח' : (data[k].status || 'ממתין') 
+                    })); 
+                    setStudents(cleanList); 
+                });
                 
-                return () => { studentsRef.off(); codesRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
+                const codesRef = database.ref('access_codes'); 
+                codesRef.on('value', snap => setAccessCodes(snap.val() || {}));
+                
+                const emergencyRef = database.ref('system/emergency'); 
+                emergencyRef.on('value', snap => setIsEmergency(snap.val() || false));
+                
+                const alertsRef = database.ref('system/alerts'); 
+                alertsRef.on('value', snap => { 
+                    const data = snap.val() || {}; 
+                    setSystemAlerts(data); 
+                    if (['kabat', 'safety_comm'].includes(userType)) { 
+                        const newAlerts = Object.values(data).filter(a => a.active); 
+                        if (newAlerts.length > 0) { 
+                            setPopupMsg(`📍 סריקה: ${newAlerts[newAlerts.length - 1].text}`); 
+                            setTimeout(() => setPopupMsg(""), 5000); 
+                        } 
+                    } 
+                });
+                
+                const commsRef = database.ref('system/comms'); 
+                let initialCommsLoaded = false; 
+                commsRef.once('value').then(() => initialCommsLoaded = true); 
+                commsRef.on('child_added', snap => { 
+                    if (!initialCommsLoaded) return; 
+                    const data = snap.val(); 
+                    if (EMERGENCY_ROLES.includes(userType)) { 
+                        setPopupMsg(`🔴 ${data.author}: ${data.text}`); 
+                        setTimeout(() => setPopupMsg(""), 6000); 
+                    } 
+                });
+                
+                const reportsRef = database.ref('reports_cloud'); 
+                reportsRef.on('value', snap => { 
+                    const data = snap.val(); 
+                    if(data) { 
+                        setCloudReports(Object.values(data).sort((a,b) => b.timestamp - a.timestamp)); 
+                    } else { 
+                        setCloudReports([]); 
+                    } 
+                });
+                
+                return () => { 
+                    studentsRef.off(); codesRef.off(); emergencyRef.off(); 
+                    alertsRef.off(); reportsRef.off(); commsRef.off(); 
+                };
             }, [userType]);
 
             const handleLogout = () => { 
@@ -730,6 +1480,7 @@
 
             const setGodRole = (rType, rName) => {
                 setUserRole(`${rName} (God Mode)`); setUserType(rType); setUserCode("GOD_MODE_USER");
+                
                 if (rType === 'admin') setView("admin"); 
                 else if (rType === 'madrich') setView("madrich_dash"); 
                 else if (rType === 'kadar') setView("kadar_menu"); 
@@ -750,7 +1501,9 @@
                     const rType = typeof codeData === 'object' ? codeData.type : 'kadar';
                     setUserRole(rName); setUserType(rType); setUserCode(inputCode);
                     setView("kadar_menu");
-                } else { alert("קוד הגישה שגוי או אינו קיים במערכת."); }
+                } else { 
+                    alert("קוד הגישה שגוי או אינו קיים במערכת."); 
+                }
             };
 
             const handleAuthAttempt = async (email, password) => {
@@ -784,7 +1537,9 @@
                         case "management_dash": return <ManagementView userRole={userRole} students={students} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
                         default: return <LoginView isEmergency={isEmergency} onPinAttempt={handlePinAttempt} onAuthAttempt={handleAuthAttempt} />;
                     }
-                } catch (error) { return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-bold text-center p-8">אירעה שגיאה בטעינת המסך. אנא רענן את הדף.</div>; }
+                } catch (error) { 
+                    return <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white font-bold text-center p-8">אירעה שגיאה בטעינת המסך. אנא רענן את הדף.</div>; 
+                }
             };
 
             return (
@@ -813,4 +1568,3 @@
     </script>
 </body>
 </html>
-
