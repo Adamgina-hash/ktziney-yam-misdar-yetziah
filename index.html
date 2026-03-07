@@ -21,7 +21,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
@@ -124,8 +123,8 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // --- מנגנון הצפנה חדש ---
-        const SECRET_KEY = "MasterOS-Akko-Secure-Key-2026"; // מפתח הצפנה סודי
+        // --- מנגנון הצפנה ---
+        const SECRET_KEY = "MasterOS-Akko-Secure-Key-2026";
         
         const encrypt = (text) => {
             if (!text) return "";
@@ -135,7 +134,7 @@
         
         const decrypt = (cipherText) => {
             if (!cipherText) return "";
-            if (!cipherText.startsWith('U2F')) return cipherText; // אם זה לא נראה כמו מוצפן, נחזיר כמו שהוא
+            if (!cipherText.startsWith('U2F')) return cipherText; 
             try {
                 const bytes = CryptoJS.AES.decrypt(cipherText, SECRET_KEY);
                 return bytes.toString(CryptoJS.enc.Utf8) || cipherText;
@@ -144,10 +143,14 @@
         // -----------------------
 
         const MajorsList = ["מכונה", "חובל משמרת", "אלקטרוניקה", "לוגיסטיקת נמלים"];
-        const ROLE_TYPES = { kadar: 'קד"ר', madrich: 'מדריך', ab_bayit: 'אב בית', kabat: 'קב"ט', firefighter: 'כבאי', medic: 'מע"ר', scanner: 'סורק', safety_comm: 'מפקד ביטחון בטיחות', officer: 'קצין תורן', kmz: 'ק.מ.ז', cadet_comm: 'מפקד קדטים', deputy_comm: 'סגן מפקד קדטים', village_mgr: 'מנהל הכפר' };
+        
+        // הפרדת תפקידים: תפקידי קוד פשוט מול תפקידי הזדהות (אימייל וסיסמה)
+        const CODE_ROLES = { kadar: 'קד"ר', ab_bayit: 'אב בית', firefighter: 'כבאי', medic: 'מע"ר', scanner: 'סורק', safety_comm: 'מפקד ביטחון בטיחות', officer: 'קצין תורן', kmz: 'ק.מ.ז' };
+        const AUTH_ROLES = { madrich: 'מדריך', kabat: 'קב"ט', cadet_comm: 'מפקד קדטים', deputy_comm: 'סגן מפקד קדטים', village_mgr: 'מנהל הכפר' };
         
         const EMERGENCY_ROLES = ['kabat', 'safety_comm', 'scanner', 'medic', 'firefighter'];
         const VALID_CLASSES = ["א/1", "א/2", "א/3", "ב/1", "ב/2", "ב/3", "ב/4", "ג/1", "ג/2", "ג/3", "ג/4", "ד/1", "ד/2", "ד/3", "ד/4"];
+        
         const extractClassFromName = (nameStr) => {
             if (!nameStr) return "";
             for (let c of VALID_CLASSES) {
@@ -166,41 +169,37 @@
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5V21M5 12H2M22 12h-3M12 5c-3.31 0-6 2.69-6 6 0 3.1 2.31 5.67 5.33 5.97M12 5c3.31 0 6 2.69 6 6 0 3.1-2.31 5.67-5.33 5.97M7 21h10"/><circle cx="12" cy="5" r="2"/></svg>
         );
 
+        // שיפור משמעותי לברקוד - רזולוציה קלה יותר לסריקה ודחיסת נתונים אגרסיבית
         const generateQR = (text) => { 
             try { 
-                if(text.length > 2900) {
-                    alert("אזהרה: רשימת החניכים ארוכה מדי מכדי להידחס לברקוד בודד. הברקוד עלול שלא להיסרק. הדו\"ח בענן תקין.");
-                }
-                const qr = new QRious({ value: text, size: 512, level: 'M' });
+                const qr = new QRious({ value: text, size: 800, level: 'L' }); // Level L = פחות צפוף ויותר קריא למצלמות
                 return qr.toDataURL(); 
             } catch (e) { return ""; } 
         };
 
         const compressReportForQR = (payload) => {
-            return JSON.stringify({
-                _t: payload.type,
-                _a: payload.author,
-                _s: payload.signerName || "",
-                _ur: payload.userRole || "",
-                _ts: payload.timestamp,
-                _r: payload.rows ? payload.rows.map(r => [decrypt(r.name) || r.id, r.class || "", r.isPresent ? 1 : 0, decrypt(r.note) || ""]) : []
-            });
+            // הופך לאובייקט מערך מינימליסטי במיוחד
+            // מבנה: [type, author, signerName, userRole, timestamp, rowsArray]
+            // rowsArray: [name, class, isPresent(1/0), note]
+            const rowsArr = payload.rows ? payload.rows.map(r => [decrypt(r.name) || r.id, r.class || "", r.isPresent ? 1 : 0, decrypt(r.note) || ""]) : [];
+            const minimalData = [payload.type, payload.author, payload.signerName || "", payload.userRole || "", payload.timestamp, rowsArr];
+            return JSON.stringify(minimalData);
         };
 
         const decompressReportFromQR = (dataStr) => {
             const parsed = JSON.parse(dataStr);
-            if (!parsed._t) throw new Error("Invalid Format");
+            if (!Array.isArray(parsed) || parsed.length < 5) throw new Error("Invalid Format");
             return {
-                reportId: `offline_report_${parsed._ts}`,
-                type: parsed._t,
-                author: parsed._a,
-                signerName: parsed._s,
-                userRole: parsed._ur || parsed._a,
-                timestamp: parsed._ts,
-                totalStudents: parsed._r ? parsed._r.length : 0,
-                totalPresent: parsed._r ? parsed._r.filter(r => r[2] === 1).length : 0,
+                reportId: `offline_report_${parsed[4]}`,
+                type: parsed[0],
+                author: parsed[1],
+                signerName: parsed[2],
+                userRole: parsed[3],
+                timestamp: parsed[4],
+                totalStudents: parsed[5] ? parsed[5].length : 0,
+                totalPresent: parsed[5] ? parsed[5].filter(r => r[2] === 1).length : 0,
                 signature: null, 
-                rows: parsed._r ? parsed._r.map(r => ({
+                rows: parsed[5] ? parsed[5].map(r => ({
                     id: Math.random().toString(),
                     name: r[0],
                     class: r[1],
@@ -220,7 +219,7 @@
                     const data = snap.val();
                     if(data) {
                         const decryptedComms = Object.values(data).map(c => ({
-                            ...c, text: decrypt(c.text) // פענוח ההודעה בענן
+                            ...c, text: decrypt(c.text) 
                         })).reverse();
                         setComms(decryptedComms);
                     }
@@ -232,7 +231,7 @@
             const sendMsg = () => {
                 if(!msg.trim()) return;
                 database.ref('system/comms').push({
-                    text: encrypt(msg), // הצפנת ההודעה
+                    text: encrypt(msg), 
                     author: userRole,
                     time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'})
                 });
@@ -377,14 +376,21 @@
             );
         };
 
-        const LoginView = ({ isEmergency, onLoginAttempt, onEmailLoginAttempt }) => {
+        const LoginView = ({ isEmergency, onLoginAttempt, onEmailLoginAttempt, onEmailRegisterAttempt }) => {
             const [inputCode, setInputCode] = useState("");
-            const [isAuthMode, setIsAuthMode] = useState(false);
+            const [authMode, setAuthMode] = useState("code"); // 'code', 'login', 'register'
+            
             const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
+            const [regName, setRegName] = useState("");
+            const [regRole, setRegRole] = useState("madrich");
 
             const handleLoginClick = () => { onLoginAttempt(inputCode); setInputCode(""); };
             const handleEmailClick = () => { onEmailLoginAttempt(email, password); };
+            const handleRegisterClick = () => {
+                if(!email || !password || !regName) return alert("יש למלא את כל השדות.");
+                onEmailRegisterAttempt(email, password, regName, regRole);
+            };
 
             return (
                 <div className={`flex flex-col items-center justify-center min-h-screen p-6 no-print ${isEmergency ? 'emergency-bg' : 'bg-[#0f172a]'}`}>
@@ -393,25 +399,46 @@
                     <h2 className="text-slate-400 font-bold mb-8">בית הספר הימי לפיקוד ומנהיגות</h2>
                     {isEmergency && <div className="bg-red-600 text-white font-black px-6 py-3 rounded-xl mb-6 animate-pulse text-xl shadow-[0_0_20px_rgba(220,38,38,0.8)]">🚨 מצב חירום מופעל 🚨</div>}
                     
-                    {!isAuthMode ? (
+                    {authMode === "code" && (
                         <div className="w-full max-w-xs space-y-4">
                             <input type="tel" placeholder="הקלד קוד גישה" className="w-full p-5 rounded-2xl bg-slate-800/80 border border-slate-600 text-white text-center text-2xl font-black outline-none focus:border-amber-400 focus:bg-slate-800" value={inputCode} onChange={e => setInputCode(e.target.value)} />
                             <button onClick={handleLoginClick} className="w-full btn-gold py-5 rounded-2xl font-black text-xl shadow-lg hover:shadow-xl transition">כניסה למערכת</button>
-                            <button onClick={() => setIsAuthMode(true)} className="w-full text-slate-400 font-bold text-sm mt-4 hover:text-white transition underline">כניסת סגל מורחב (אימייל / Auth)</button>
+                            <div className="flex justify-between pt-4">
+                                <button onClick={() => setAuthMode("login")} className="text-slate-400 font-bold text-sm hover:text-white transition underline">התחברות איש סגל</button>
+                                <button onClick={() => setAuthMode("register")} className="text-emerald-400 font-bold text-sm hover:text-emerald-300 transition underline">הרשמת משתמש חדש</button>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="w-full max-w-xs space-y-4">
-                            <input type="email" placeholder="אימייל מורשה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center text-lg font-bold outline-none focus:border-emerald-400" value={email} onChange={e => setEmail(e.target.value)} />
-                            <input type="password" placeholder="סיסמה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center text-lg font-bold outline-none focus:border-emerald-400" value={password} onChange={e => setPassword(e.target.value)} />
+                    )}
+
+                    {authMode === "login" && (
+                        <div className="w-full max-w-xs space-y-4 animate-fadeIn">
+                            <h3 className="text-white text-center font-bold mb-2">כניסת סגל מורחב</h3>
+                            <input type="email" placeholder="אימייל" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={email} onChange={e => setEmail(e.target.value)} />
+                            <input type="password" placeholder="סיסמה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={password} onChange={e => setPassword(e.target.value)} />
                             <button onClick={handleEmailClick} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-lg shadow-lg transition">התחברות מאובטחת</button>
-                            <button onClick={() => setIsAuthMode(false)} className="w-full text-slate-400 font-bold text-sm mt-4 hover:text-white transition underline">חזור לכניסה רגילה עם קוד</button>
+                            <button onClick={() => setAuthMode("code")} className="w-full text-slate-400 font-bold text-sm mt-4 hover:text-white transition underline">חזור לכניסה עם קוד</button>
+                        </div>
+                    )}
+
+                    {authMode === "register" && (
+                        <div className="w-full max-w-xs space-y-3 animate-fadeIn">
+                            <h3 className="text-emerald-400 text-center font-black mb-2 text-lg">הרשמת איש סגל חדש</h3>
+                            <input type="text" placeholder="שם מלא" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={regName} onChange={e => setRegName(e.target.value)} />
+                            <select className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={regRole} onChange={e => setRegRole(e.target.value)}>
+                                {Object.entries(AUTH_ROLES).map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                            </select>
+                            <input type="email" placeholder="אימייל ארגוני" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={email} onChange={e => setEmail(e.target.value)} />
+                            <input type="password" placeholder="בחר סיסמה" className="w-full p-4 rounded-xl bg-slate-800/80 border border-slate-600 text-white text-center font-bold outline-none focus:border-emerald-400" value={password} onChange={e => setPassword(e.target.value)} />
+                            
+                            <button onClick={handleRegisterClick} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-xl font-black text-lg shadow-lg transition mt-2">בקש אישור הרשמה</button>
+                            <button onClick={() => setAuthMode("code")} className="w-full text-slate-400 font-bold text-sm hover:text-white transition underline">ביטול וחזרה</button>
                         </div>
                     )}
                 </div>
             );
         };
 
-        const AdminView = ({ accessCodes, students, handleLogout }) => {
+        const AdminView = ({ accessCodes, pendingUsers, students, approveUser, rejectUser, handleLogout }) => {
             const [newRoleType, setNewRoleType] = useState("kadar");
             const [newRoleName, setNewRoleName] = useState("");
             const [printData, setPrintData] = useState(null);
@@ -433,17 +460,14 @@
             const rotateKmz = () => {
                 if (!confirm("להחליף את קוד הק.מ.ז עכשיו?")) return;
                 const updates = {}; Object.entries(accessCodes || {}).forEach(([oldCode, data]) => { let rType = typeof data === 'object' ? data.type : 'kadar'; if (rType === 'kmz') updates[oldCode] = null; });
-                const newCode = generateRandomCode(); updates[newCode] = { name: 'ק.מ.ז', type: 'kmz' }; database.ref('access_codes').update(updates); alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
+                const newCode = generateRandomCode(); updates[newCode] = { name: 'מרפאה', type: 'kmz' }; database.ref('access_codes').update(updates); alert("קוד הק.מ.ז החדש לשימוש היום הוא: " + newCode);
             };
 
             const wipeCloudData = async () => {
                 const pass = prompt("אזהרה חמורה: פעולה זו תמחק לחלוטין את כל הדוחות, מסדרי החולים וההתראות מהשרת. רשימת החניכים וקודי הגישה *לא* יימחקו. הקלד 'אישור' כדי להמשיך:");
                 if (pass !== 'אישור') { alert("הפעולה בוטלה."); return; }
-                
                 try {
-                    await database.ref('reports_cloud').remove();
-                    await database.ref('system/alerts').remove();
-                    await database.ref('system/comms').remove();
+                    await database.ref('reports_cloud').remove(); await database.ref('system/alerts').remove(); await database.ref('system/comms').remove();
                     alert("הענן נוקה בהצלחה! כל הדו\"חות וההתראות נמחקו.");
                 } catch (e) { alert("שגיאה במחיקת נתונים: " + e.message); }
             };
@@ -470,35 +494,59 @@
                         <h2 className="text-2xl font-black text-white">ניהול פאנל מורחב</h2>
                         <button onClick={handleLogout} className="bg-slate-800 border border-slate-600 hover:bg-slate-700 px-4 py-2 rounded-xl font-bold text-slate-200 transition">יציאה</button>
                     </header>
+
+                    {/* אזור המשתמשים הממתינים לאישור */}
+                    <div className="modern-card p-6 mb-8 border-t-4 border-emerald-500 bg-emerald-950/20">
+                        <h3 className="font-bold text-emerald-400 mb-4 flex items-center gap-2"><span>👤</span> משתמשים ממתינים לאישור ({Object.keys(pendingUsers).length})</h3>
+                        {Object.keys(pendingUsers).length === 0 ? (
+                            <div className="text-sm text-slate-400 font-bold">אין בקשות הרשמה פתוחות.</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {Object.entries(pendingUsers).map(([uid, user]) => (
+                                    <div key={uid} className="bg-slate-800 p-4 rounded-xl border border-slate-600 flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold text-white">{user.name}</div>
+                                            <div className="text-xs text-slate-400">{user.email} • <span className="text-emerald-400 font-bold">{AUTH_ROLES[user.role]}</span></div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => approveUser(uid, user)} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow">אשר</button>
+                                            <button onClick={() => rejectUser(uid)} className="bg-slate-700 hover:bg-slate-600 text-red-400 px-3 py-1.5 rounded-lg text-sm font-bold shadow">דחה</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="modern-card p-6 mb-8 border-t-4 border-amber-400">
-                        <h3 className="font-bold mb-4 text-slate-400 text-sm uppercase">הקמת משתמש ותפקיד חדש</h3>
+                        <h3 className="font-bold mb-4 text-slate-400 text-sm uppercase">הנפקת קוד זמני לתפקידי שטח</h3>
                         <select className="w-full p-4 rounded-xl border border-slate-600 bg-slate-800 text-white font-bold outline-none mb-3" value={newRoleType} onChange={e=>setNewRoleType(e.target.value)}>
-                            {Object.entries(ROLE_TYPES).map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                            {Object.entries(CODE_ROLES).map(([val, label]) => <option key={val} value={val}>{label}</option>)}
                         </select>
                         <input className="w-full p-4 rounded-xl border border-slate-600 bg-slate-800 text-white font-bold outline-none mb-4" placeholder="שם/כיתה מזהה (לדוג: קד''ר/ית כיתה ג/3)" value={newRoleName} onChange={e => setNewRoleName(e.target.value)} />
-                        <button onClick={() => { if(!newRoleName) return; const code = generateRandomCode(); database.ref(`access_codes/${code}`).set({ name: newRoleName, type: newRoleType }); setNewRoleName(""); alert(`משתמש חדש הוקם. קוד גישה: ${code}`); }} className="w-full btn-gold py-4 rounded-xl font-bold shadow-lg">הנפק קוד במערכת</button>
+                        <button onClick={() => { if(!newRoleName) return; const code = generateRandomCode(); database.ref(`access_codes/${code}`).set({ name: newRoleName, type: newRoleType }); setNewRoleName(""); alert(`קוד זמני הונפק. קוד גישה: ${code}`); }} className="w-full btn-gold py-4 rounded-xl font-bold shadow-lg">הנפק קוד במערכת</button>
                     </div>
                     
                     <div className="modern-card p-6 mb-8 border-t-4 border-red-500 bg-red-950/30">
                         <h3 className="font-bold text-red-400 mb-2">🗑️ ניקוי ענן אגרסיבי</h3>
-                        <p className="text-sm text-slate-400 mb-4">מוחק את כל הדוחות, מסדרי החולים וההתראות (כדי להקל על השרת). החניכים והמשתמשים יישמרו.</p>
+                        <p className="text-sm text-slate-400 mb-4">מוחק את כל הדוחות מהשרת.</p>
                         <button onClick={wipeCloudData} className="w-full bg-red-700 hover:bg-red-600 text-white border border-red-500 py-4 rounded-xl font-black shadow-lg transition">איפוס ומחיקת נתוני ענן</button>
                     </div>
 
-                    <div className="modern-card p-6 mb-8 border-t-4 border-emerald-500">
+                    <div className="modern-card p-6 mb-8 border-t-4 border-blue-500">
                         <h3 className="font-bold text-white mb-4">פעולות מאקרו</h3>
                         <button onClick={rotateKadars} className="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-500 py-4 rounded-xl font-black shadow-lg mb-4 transition">🔄 החלפת סבב קד"רים (כולל הדפסה)</button>
                         <button onClick={rotateKmz} className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 py-4 rounded-xl font-black shadow-lg transition"> החלף קוד ק.מ.ז </button>
                     </div>
                     
                     <div className="space-y-3">
-                        <h3 className="font-bold text-slate-400 text-sm mb-2">משתמשים פעילים במערכת</h3>
+                        <h3 className="font-bold text-slate-400 text-sm mb-2">קודי גישה פעילים במערכת</h3>
                         {Object.entries(accessCodes || {}).map(([code, data]) => {
                             const rName = typeof data === 'object' ? data.name : data; const rType = typeof data === 'object' ? data.type : 'kadar';
                             return (
                                 <div key={code} className="modern-card p-4 flex justify-between items-center">
                                     <div><div className="font-bold text-white">{rName}</div><div className="text-sm font-mono text-amber-400 mt-1">{code}</div></div>
-                                    <div className="flex flex-col items-end gap-2"><span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{ROLE_TYPES[rType]}</span><button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק מורשה</button></div>
+                                    <div className="flex flex-col items-end gap-2"><span className="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded-full font-bold">{CODE_ROLES[rType] || AUTH_ROLES[rType] || rType}</span><button onClick={() => database.ref(`access_codes/${code}`).remove()} className="text-red-400 hover:text-red-300 font-bold text-xs underline">מחק קוד</button></div>
                                 </div>
                             )
                         })}
@@ -515,38 +563,30 @@
                         <button onClick={handleLogout} className="text-white bg-red-600 hover:bg-red-500 px-6 py-2 rounded-xl font-bold shadow-lg transition">יציאה</button>
                     </header>
                     <div className="modern-card p-6 border-t-4 border-emerald-500 max-w-3xl mx-auto text-center">
-                        <p className="text-slate-300 text-lg mb-6 font-bold">ברוך הבא למצב מפתח מאסטר. בחר לאיזה תפקיד ברצונך להיכנס כעת:</p>
+                        <p className="text-slate-300 text-lg mb-6 font-bold">ברוך הבא למצב מפתח מאסטר. בחר תפקיד:</p>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {Object.entries(ROLE_TYPES).map(([val, label]) => (
-                                <button 
-                                    key={val} 
-                                    onClick={() => setGodRole(val, label)} 
-                                    className="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white p-4 rounded-xl font-bold shadow-lg transition hover:border-amber-400 hover:text-amber-400"
-                                >
-                                    {label}
-                                </button>
+                            {Object.entries({...CODE_ROLES, ...AUTH_ROLES}).map(([val, label]) => (
+                                <button key={val} onClick={() => setGodRole(val, label)} className="bg-slate-700 hover:bg-slate-600 border border-slate-500 text-white p-4 rounded-xl font-bold shadow-lg transition hover:border-amber-400">{label}</button>
                             ))}
-                            <button 
-                                onClick={() => setGodRole('admin', 'אדמין מערכת')} 
-                                className="bg-amber-600 hover:bg-amber-500 border border-amber-400 text-slate-900 p-4 rounded-xl font-black shadow-lg transition"
-                            >
-                                ⚙️ ניהול אדמין
-                            </button>
+                            <button onClick={() => setGodRole('admin', 'אדמין מערכת')} className="bg-amber-600 hover:bg-amber-500 border border-amber-400 text-slate-900 p-4 rounded-xl font-black shadow-lg transition">⚙️ ניהול אדמין</button>
                         </div>
                     </div>
                 </div>
             );
         };
 
-        const MadrichView = ({ userRole, userCode, accessCodes, students, cloudReports, setView, handleLogout }) => {
+        const MadrichView = ({ userRole, userCode, assignedClassProp, students, cloudReports, setView, handleLogout, addOfflineReportFromMadrich }) => {
             const [selectedReport, setSelectedReport] = useState(null);
-            const assignedClass = accessCodes[userCode]?.assignedClass || "";
+            const [showQRS, setShowQRS] = useState(false);
+            const [assignedClass, setAssignedClass] = useState(assignedClassProp || "");
 
             const allClassesList = useMemo(() => [...new Set(students.map(s => s.className?.trim()).filter(Boolean))].sort(), [students]);
             
             const handleClassChange = (e) => {
                 const newClass = e.target.value;
-                database.ref(`access_codes/${userCode}`).update({ assignedClass: newClass });
+                setAssignedClass(newClass);
+                // עדכון במסד הנתונים תחת users/approved כדי שיישמר לפעם הבאה
+                database.ref(`users/approved/${userCode}`).update({ assignedClass: newClass });
             };
 
             const classStudents = useMemo(() => students.filter(s => s.className === assignedClass), [students, assignedClass]);
@@ -570,94 +610,106 @@
                 return { ok, waiting, sick, total: classStudents.length };
             }, [classStudents]);
 
+            // אם מדריך נכנס ואין לו כיתה (פעם ראשונה) - הוא חייב לבחור אחת
+            if (!assignedClass) {
+                return (
+                    <div className="min-h-screen pb-20 p-6 flex items-center justify-center no-print">
+                        <div className="modern-card p-8 w-full max-w-sm border-t-4 border-amber-400">
+                            <h2 className="text-2xl font-black text-white mb-2 text-center">ברוך הבא למערכת!</h2>
+                            <p className="text-slate-400 font-bold mb-6 text-center text-sm">כדי להמשיך, עליך לבחור את כיתת האם אליה אתה משוייך.</p>
+                            <select className="w-full p-4 rounded-xl border border-slate-600 bg-slate-700 text-white font-bold outline-none focus:border-amber-400 mb-6" value={assignedClass} onChange={handleClassChange}>
+                                <option value="">-- בחר כיתה --</option>
+                                {allClassesList.map(c => <option key={c} value={c}>כיתה {c}</option>)}
+                            </select>
+                            <button onClick={handleLogout} className="w-full text-slate-500 font-bold underline text-sm">התנתק</button>
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className="min-h-screen pb-20 no-print">
                     <header className="mb-6 bg-slate-800 text-white p-6 rounded-b-3xl shadow-xl flex justify-between items-center border-b border-slate-700">
                         <div>
                             <h1 className="text-2xl font-black text-amber-400">דשבורד מדריך</h1>
-                            <h2 className="text-sm font-bold text-slate-400">{userRole}</h2>
+                            <h2 className="text-sm font-bold text-slate-400">{userRole} (כיתה {assignedClass})</h2>
                         </div>
                         <button onClick={handleLogout} className="text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded-lg font-bold transition">התנתק</button>
                     </header>
                     
                     <div className="p-4 max-w-xl mx-auto space-y-6">
-                        <div className="modern-card p-6 border-t-4 border-amber-400">
-                            <h3 className="font-bold text-white mb-2 text-sm">בחירת כיתת אם עליה אתה מפקד:</h3>
-                            <select className="w-full p-4 rounded-xl border border-slate-600 bg-slate-700 text-white font-bold outline-none focus:border-amber-400" value={assignedClass} onChange={handleClassChange}>
-                                <option value="">-- בחר כיתה להצגת נתונים --</option>
-                                {allClassesList.map(c => <option key={c} value={c}>כיתה {c}</option>)}
-                            </select>
-                            {!assignedClass && <p className="text-amber-400 text-xs font-bold mt-2">יש לבחור כיתה כדי לראות את הדשבורד ולקבל התרעות.</p>}
+                        <div className="grid grid-cols-3 gap-3 text-center">
+                            <div className="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow">
+                                <div className="text-2xl font-black text-white">{stats.total}</div>
+                                <div className="text-xs font-bold text-slate-400">סה"כ חניכים</div>
+                            </div>
+                            <div className="bg-emerald-900/50 border border-emerald-700 p-4 rounded-2xl shadow">
+                                <div className="text-2xl font-black text-emerald-400">{stats.ok}</div>
+                                <div className="text-xs font-bold text-emerald-200">נוכחים / שוחררו</div>
+                            </div>
+                            <div className="bg-amber-900/50 border border-amber-700 p-4 rounded-2xl shadow">
+                                <div className="text-2xl font-black text-amber-400">{stats.sick}</div>
+                                <div className="text-xs font-bold text-amber-200">חסרים / חולים</div>
+                            </div>
                         </div>
 
-                        {assignedClass && (
-                            <>
-                                <div className="grid grid-cols-3 gap-3 text-center">
-                                    <div className="bg-slate-800 border border-slate-700 p-4 rounded-2xl shadow">
-                                        <div className="text-2xl font-black text-white">{stats.total}</div>
-                                        <div className="text-xs font-bold text-slate-400">סה"כ חניכים</div>
-                                    </div>
-                                    <div className="bg-emerald-900/50 border border-emerald-700 p-4 rounded-2xl shadow">
-                                        <div className="text-2xl font-black text-emerald-400">{stats.ok}</div>
-                                        <div className="text-xs font-bold text-emerald-200">נוכחים / שוחררו</div>
-                                    </div>
-                                    <div className="bg-amber-900/50 border border-amber-700 p-4 rounded-2xl shadow">
-                                        <div className="text-2xl font-black text-amber-400">{stats.sick}</div>
-                                        <div className="text-xs font-bold text-amber-200">חסרים / חולים</div>
-                                    </div>
-                                </div>
+                        <div className="modern-card p-6 border-t-4 border-blue-500">
+                            <h3 className="font-bold text-white text-lg mb-4">פעולות מהירות לכיתה {assignedClass}</h3>
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                <button onClick={() => setView("kadar_form_boker")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">☀️ מסדר בוקר</button>
+                                <button onClick={() => setView("kadar_form_knisa")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">🚶‍♂️ מסדר כניסה</button>
+                                <button onClick={() => setView("kadar_form_nochachut")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">📝 דו"ח נוכחות</button>
+                                <button onClick={() => setView("kadar_form_kibui_orot")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">🌙 כיבוי אורות</button>
+                            </div>
+                            <button onClick={() => setView("kadar_exit_original")} className="w-full bg-slate-800 hover:bg-slate-900 text-amber-400 p-3 rounded-xl font-black text-sm border border-amber-500/50 transition shadow-lg mb-3">🚪 מסדר יציאה לכיתה</button>
+                            <button onClick={() => setShowQRS(true)} className="w-full bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl font-black text-sm transition shadow flex items-center justify-center gap-2">📷 סרוק ברקוד דו"ח אופליין מקד"ר</button>
+                        </div>
 
-                                <div className="modern-card p-6 border-t-4 border-blue-500">
-                                    <h3 className="font-bold text-white text-lg mb-4">פעולות מהירות לכיתה {assignedClass}</h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={() => setView("kadar_form_boker")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">☀️ מסדר בוקר</button>
-                                        <button onClick={() => setView("kadar_form_knisa")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">🚶‍♂️ מסדר כניסה</button>
-                                        <button onClick={() => setView("kadar_form_nochachut")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">📝 דו"ח נוכחות</button>
-                                        <button onClick={() => setView("kadar_form_kibui_orot")} className="bg-slate-700 hover:bg-slate-600 text-white p-3 rounded-xl font-bold text-sm border border-slate-600 transition">🌙 כיבוי אורות</button>
-                                    </div>
-                                    <button onClick={() => setView("kadar_exit_original")} className="w-full mt-3 bg-slate-800 hover:bg-slate-900 text-amber-400 p-3 rounded-xl font-black text-sm border border-amber-500/50 transition shadow-lg">🚪 מסדר יציאה לכיתה</button>
-                                </div>
-
-                                <div className="modern-card p-6 border-t-4 border-purple-500">
-                                    <h3 className="font-bold text-white text-lg mb-4">דו"חות ופעילות הכיתה</h3>
-                                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                                        {madrichReports.length === 0 && <div className="text-slate-400 text-sm">טרם התקבלו דו"חות עבור כיתה זו.</div>}
-                                        {madrichReports.map(r => (
-                                            <div key={r.reportId} className="bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600">
-                                                <div>
-                                                    <div className="font-bold text-white text-sm">
-                                                        {r.type === 'kmz' ? 'ביקור במרפאה' : r.type} 
-                                                        <span className="text-slate-400 text-xs ml-2">({r.author})</span>
-                                                    </div>
-                                                    <div className="text-xs text-amber-400 mt-1">{new Date(r.timestamp).toLocaleTimeString('he-IL')} | {new Date(r.timestamp).toLocaleDateString('he-IL')}</div>
-                                                </div>
-                                                <button onClick={() => setSelectedReport(r)} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition border border-slate-500">צפה</button>
+                        <div className="modern-card p-6 border-t-4 border-purple-500">
+                            <h3 className="font-bold text-white text-lg mb-4">דו"חות ופעילות הכיתה</h3>
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                                {madrichReports.length === 0 && <div className="text-slate-400 text-sm">טרם התקבלו דו"חות עבור כיתה זו.</div>}
+                                {madrichReports.map(r => (
+                                    <div key={r.reportId} className="bg-slate-700 p-3 rounded-lg flex justify-between items-center border border-slate-600">
+                                        <div>
+                                            <div className="font-bold text-white text-sm">
+                                                {r.type === 'kmz' ? 'ביקור במרפאה' : r.type} 
+                                                <span className="text-slate-400 text-xs ml-2">({r.author})</span>
                                             </div>
-                                        ))}
+                                            <div className="text-xs text-amber-400 mt-1">{new Date(r.timestamp).toLocaleTimeString('he-IL')} | {new Date(r.timestamp).toLocaleDateString('he-IL')}</div>
+                                        </div>
+                                        <button onClick={() => setSelectedReport(r)} className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition border border-slate-500">צפה</button>
                                     </div>
+                                ))}
+                            </div>
+                        </div>
+                        
+                        <div className="modern-card p-4 border-t-4 border-slate-600">
+                            <details className="cursor-pointer">
+                                <summary className="font-bold text-slate-400 text-sm outline-none">הגדרות מתקדמות (שינוי כיתה)</summary>
+                                <div className="mt-4 pt-4 border-t border-slate-700">
+                                    <select className="w-full p-3 rounded-xl border border-slate-600 bg-slate-700 text-white font-bold outline-none" value={assignedClass} onChange={handleClassChange}>
+                                        {allClassesList.map(c => <option key={c} value={c}>כיתה {c}</option>)}
+                                    </select>
                                 </div>
-                                
-                                <div className="modern-card p-6 border-t-4 border-emerald-500">
-                                    <h3 className="font-bold text-white text-lg mb-3">מצב חניכי הכיתה חי</h3>
-                                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                                        {classStudents.length === 0 ? <div className="text-slate-400 text-sm">אין חניכים רשומים לכיתה זו.</div> : null}
-                                        {classStudents.map(s => (
-                                            <div key={s.id} className="bg-slate-700 p-2 rounded flex justify-between items-center text-sm border border-slate-600">
-                                                <div className="font-bold text-white">{s.firstName} {s.lastName}</div>
-                                                <div className={`font-bold px-2 py-1 rounded text-xs ${s.status === 'נוכח' ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-300'}`}>{s.status}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                            </details>
+                        </div>
                     </div>
                     {selectedReport && <ReportViewerModal report={selectedReport} onClose={() => setSelectedReport(null)} />}
+                    {showQRS && <QRScanner onClose={()=>setShowQRS(false)} onResult={d=>{ 
+                        setShowQRS(false); 
+                        try { 
+                            const parsed = decompressReportFromQR(d);
+                            addOfflineReportFromMadrich(parsed);
+                            setSelectedReport(parsed);
+                            alert("הדו\"ח נסרק ונשאב בהצלחה! הוא נשמר בזיכרון עד לסנכרון."); 
+                        }catch(e){alert("שגיאה בסריקה. הברקוד לא תקין או פגום.");} 
+                    }}/>}
                 </div>
             );
         };
 
-        const KadarForm = ({ userRole, userCode, accessCodes, userType, students, formType, setView }) => {
+        const KadarForm = ({ userRole, userCode, assignedClassProp, userType, students, formType, setView }) => {
             const isMorning = ['boker', 'knisa'].includes(formType); 
             const isEmergencyForm = formType === 'emergency'; 
             const isPDFNeeded = ['nochachut', 'kibui_orot', 'boker', 'knisa'].includes(formType);
@@ -669,7 +721,7 @@
             if (formType === 'kibui_orot') title = 'כיבוי אורות';
             if (isEmergencyForm) title = 'דו"ח חירום';
 
-            const assignedClass = accessCodes[userCode]?.assignedClass || "";
+            const assignedClass = assignedClassProp || "";
             const extractedClass = userType === 'madrich' ? assignedClass : extractClassFromName(userRole);
             
             const exactMatchStudents = students.filter(s => {
@@ -729,20 +781,20 @@
                 const payload = { 
                     reportId: generatedReportId, 
                     author: finalAuthor,
-                    signerName: encrypt(signerName), // הוצפן
+                    signerName: encrypt(signerName),
                     userRole: userRole, 
                     type: title, 
                     timestamp: firebase.database.ServerValue.TIMESTAMP, 
                     totalStudents: classStudents.length, 
                     totalPresent: totalPresent, 
-                    rows: finalRows.map(r => ({...r, name: encrypt(r.name), note: encrypt(r.note)})), // הוצפן
-                    signature: encrypt(signatureBase64) // הוצפן
+                    rows: finalRows.map(r => ({...r, name: encrypt(r.name), note: encrypt(r.note)})),
+                    signature: encrypt(signatureBase64) 
                 };
                 
                 try { await database.ref(`reports_cloud/${payload.reportId}`).set(payload); } catch (e) {}
                 
-                const unencryptedPayloadForQR = { ...payload, signerName: signerName, rows: finalRows };
-                const reportForDisplay = { ...unencryptedPayloadForQR, timestamp: new Date().getTime(), signature: signatureBase64 };
+                const unencryptedPayloadForQR = { ...payload, signerName: signerName, rows: finalRows, timestamp: new Date().getTime() };
+                const reportForDisplay = { ...unencryptedPayloadForQR, signature: signatureBase64 };
 
                 setSubmittedReport(reportForDisplay);
                 setQrPayload(compressReportForQR(unencryptedPayloadForQR)); 
@@ -912,7 +964,7 @@
                 const payload = {
                     reportId: reportId,
                     author: userRole,
-                    signerName: signerName, // לא מוצפן כאן כי זה רק ברקוד מקומי
+                    signerName: signerName, 
                     userRole: userRole,
                     type: pdfTitle,
                     timestamp: new Date().getTime(),
@@ -1127,16 +1179,16 @@
                         
                         <div className="official-print-wrapper shadow-2xl print:shadow-none">
                             <div className="official-header">
-                                <div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">דוח ביקורת מגורים - מסדר מעונות</h2></div>
+                                <div className="header-right"><h1 className="school-name">ביה"ס לקציני ים עכו</h1><h2 className="report-title">דוח ביקורת מגורים וסדר כללי</h2></div>
                                 <div className="header-left"><div className="meta-text">תאריך: <span dir="ltr">{new Date().toLocaleDateString('he-IL')}</span></div></div>
                             </div>
                             <div className="table-container">
                                 <table className="official-table mt-4">
-                                    <thead><tr><th style={{width:'20%'}}>מספר חדר</th><th>הערות שנמצאו בביקורת</th></tr></thead>
+                                    <thead><tr><th style={{width:'20%'}}>מספר חדר</th><th>הערות / ליקויים שנמצאו בביקורת</th></tr></thead>
                                     <tbody>
                                         {reports.map((r, i) => { 
                                             const badChecks = Object.keys(r.checks).filter(k => r.checks[k]); 
-                                            return <tr key={i}><td style={{fontWeight:'900', fontSize:'16pt'}}>{r.room}</td><td style={{color: badChecks.length>0?'#dc2626':'#059669', fontWeight:'700', textAlign: 'right', paddingRight: '10px !important'}}>{badChecks.length > 0 ? "נמצאו ביקורות: " + badChecks.join(", ") : "✓ חדר מצטיין  -  "}</td></tr>; 
+                                            return <tr key={i}><td style={{fontWeight:'900', fontSize:'16pt'}}>{r.room}</td><td style={{color: badChecks.length>0?'#dc2626':'#059669', fontWeight:'700', textAlign: 'right', paddingRight: '10px !important'}}>{badChecks.length > 0 ? "נמצאו ליקויים: " + badChecks.join(", ") : "✓ חדר תקין לחלוטין - אין ליקויים"}</td></tr>; 
                                         })}
                                     </tbody>
                                 </table>
@@ -1460,7 +1512,7 @@
                     await database.ref(`reports_cloud/${payload.reportId}`).set(payload); 
                 } catch(e) {} 
                 
-                const unencryptedPayload = { ...payload, signerName: signerName, rows: patients };
+                const unencryptedPayload = { ...payload, signerName: signerName, rows: patients, timestamp: new Date().getTime() };
                 setQrPayload(compressReportForQR(unencryptedPayload)); 
                 
                 setShowQR(true); 
@@ -1542,7 +1594,7 @@
             const sendAlert = () => { 
                 if(!txt) return; 
                 database.ref('system/alerts').push({ 
-                    text: encrypt(txt), // הצפנת ההודעה
+                    text: encrypt(txt), 
                     time: new Date().toLocaleTimeString('he-IL'), 
                     active: true, 
                     author: userRole 
@@ -1711,10 +1763,12 @@
             const [userRole, setUserRole] = useState("");
             const [userType, setUserType] = useState("");
             const [userCode, setUserCode] = useState("");
+            const [madrichClass, setMadrichClass] = useState("");
             
             const [students, setStudents] = useState([]);
             const [accessCodes, setAccessCodes] = useState({});
             
+            const [pendingUsers, setPendingUsers] = useState({});
             const [isEmergency, setIsEmergency] = useState(false);
             const [systemAlerts, setSystemAlerts] = useState({});
             const [popupMsg, setPopupMsg] = useState("");
@@ -1739,6 +1793,9 @@
                 
                 const codesRef = database.ref('access_codes');
                 codesRef.on('value', snap => setAccessCodes(snap.val() || {}));
+                
+                const pendingRef = database.ref('users/pending');
+                pendingRef.on('value', snap => setPendingUsers(snap.val() || {}));
                 
                 const emergencyRef = database.ref('system/emergency');
                 emergencyRef.on('value', snap => setIsEmergency(snap.val() || false));
@@ -1789,25 +1846,20 @@
                     }
                 });
                 
-                return () => { studentsRef.off(); codesRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
+                return () => { studentsRef.off(); codesRef.off(); pendingRef.off(); emergencyRef.off(); alertsRef.off(); reportsRef.off(); commsRef.off(); };
             }, [userType]);
 
             const handleLogout = () => { 
-                // התנתקות גם משרתי ההזדהות של פיירבייס אם היה מחובר משם
-                if(firebase.auth) {
-                    firebase.auth().signOut().catch(()=>{});
-                }
-                setUserRole(""); setUserType(""); setUserCode(""); setView("login"); 
+                if(firebase.auth) { firebase.auth().signOut().catch(()=>{}); }
+                setUserRole(""); setUserType(""); setUserCode(""); setMadrichClass(""); setView("login"); 
             };
 
             const setGodRole = (rType, rName) => {
-                setUserRole(`${rName} (God Mode)`);
-                setUserType(rType);
-                setUserCode("GOD_MODE_USER");
+                setUserRole(`${rName} (God Mode)`); setUserType(rType); setUserCode("GOD_MODE_USER");
                 
                 if (rType === 'admin') setView("admin");
                 else if (rType === 'madrich') setView("madrich_dash");
-                else if (rType === 'kadar') setView("kadar_menu");
+                else if (CODE_ROLES[rType] === 'קד"ר' || rType === 'kadar') setView("kadar_menu");
                 else if (rType === 'ab_bayit') setView("ab_bayit");
                 else if (['kabat', 'safety_comm'].includes(rType)) setView("kabat_dash");
                 else if (rType === 'scanner') setView("scanner_dash");
@@ -1830,7 +1882,7 @@
                     setUserRole(rName); setUserType(rType); setUserCode(inputCode);
                     
                     if (rType === 'madrich') setView("madrich_dash");
-                    else if (rType === 'kadar') setView("kadar_menu");
+                    else if (CODE_ROLES[rType] === 'קד"ר' || rType === 'kadar') setView("kadar_menu");
                     else if (rType === 'ab_bayit') setView("ab_bayit");
                     else if (['kabat', 'safety_comm'].includes(rType)) setView("kabat_dash");
                     else if (rType === 'scanner') setView("scanner_dash");
@@ -1842,15 +1894,52 @@
                 } else { alert("קוד הגישה שגוי או אינו קיים במערכת."); }
             };
 
-            // הוספת פונקציית התחברות עם פיירבייס אותנטיקציה
+            // הוספת בקשת הרשמה חדשה
+            const handleEmailRegisterAttempt = async (email, password, name, role) => {
+                try {
+                    const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
+                    await database.ref(`users/pending/${cred.user.uid}`).set({ email, name, role });
+                    await firebase.auth().signOut();
+                    alert("בקשת ההרשמה נשלחה בהצלחה! לא ניתן להתחבר עד לאישור מנהל המערכת.");
+                    // ריפרש קל כדי לנקות טפסים
+                    window.location.reload();
+                } catch (e) { 
+                    if(e.code === 'auth/email-already-in-use') alert("האימייל הזה כבר רשום במערכת.");
+                    else if(e.code === 'auth/weak-password') alert("הסיסמה חלשה מדי. אנא בחר סיסמה של 6 תווים לפחות.");
+                    else alert("שגיאה בהרשמה: " + e.message); 
+                }
+            };
+
+            // התחברות ובדיקת אישור מנהל
             const handleEmailLoginAttempt = async (email, password) => {
                 try {
-                    await firebase.auth().signInWithEmailAndPassword(email, password);
-                    // אם ההתחברות הצליחה, ניתן לו הרשאות אדמין (ניהול)
-                    setUserRole("סגל בכיר (התחברות מאובטחת)");
-                    setUserType("admin");
-                    setUserCode("SECURE_AUTH_USER");
-                    setView("admin");
+                    const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
+                    const uid = cred.user.uid;
+                    
+                    const approvedSnap = await database.ref(`users/approved/${uid}`).once('value');
+                    if (approvedSnap.exists()) {
+                        const userData = approvedSnap.val();
+                        setUserRole(userData.name);
+                        setUserType(userData.role);
+                        setUserCode(uid); // מזהה המשתמש משמש כקוד שלו
+                        
+                        if(userData.role === 'madrich') {
+                            setMadrichClass(userData.assignedClass || "");
+                            setView("madrich_dash");
+                        }
+                        else if (userData.role === 'kabat') setView("kabat_dash");
+                        else if (['cadet_comm', 'deputy_comm', 'village_mgr'].includes(userData.role)) setView("management_dash");
+                        else setView("kadar_menu"); // Fallback
+
+                    } else {
+                        const pendingSnap = await database.ref(`users/pending/${uid}`).once('value');
+                        if (pendingSnap.exists()) {
+                            alert("החשבון שלך עדיין ממתין לאישור מנהל.");
+                        } else {
+                            alert("חשבון לא קיים או שנמחק על ידי המנהל.");
+                        }
+                        await firebase.auth().signOut();
+                    }
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                         alert("שגיאה: אימייל או סיסמה אינם נכונים.");
@@ -1860,19 +1949,36 @@
                 }
             };
 
+            // פונקציות לאדמין
+            const approveUser = (uid, user) => {
+                database.ref(`users/approved/${uid}`).set({ ...user, approvedAt: new Date().getTime() });
+                database.ref(`users/pending/${uid}`).remove();
+                alert(`המשתמש ${user.name} אושר בהצלחה!`);
+            };
+
+            const rejectUser = (uid) => {
+                if(confirm("לדחות ולמחוק את בקשת ההרשמה?")) {
+                    database.ref(`users/pending/${uid}`).remove();
+                }
+            };
+
+            const addOfflineReportFromMadrich = (report) => {
+                setOfflineReports([...offlineReports, report]);
+            };
+
             const renderCurrentView = () => {
                 try {
                     switch(view) {
-                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} />;
-                        case "admin": return <AdminView accessCodes={accessCodes} students={students} handleLogout={handleLogout} />;
+                        case "login": return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} onEmailRegisterAttempt={handleEmailRegisterAttempt} />;
+                        case "admin": return <AdminView accessCodes={accessCodes} pendingUsers={pendingUsers} students={students} approveUser={approveUser} rejectUser={rejectUser} handleLogout={handleLogout} />;
                         case "god_mode": return <GodModeView setGodRole={setGodRole} handleLogout={handleLogout} />;
-                        case "madrich_dash": return <MadrichView userRole={userRole} userCode={userCode} accessCodes={accessCodes} students={students} cloudReports={cloudReports} setView={setView} handleLogout={handleLogout} />;
+                        case "madrich_dash": return <MadrichView userRole={userRole} userCode={userCode} assignedClassProp={madrichClass} students={students} cloudReports={cloudReports} setView={setView} handleLogout={handleLogout} addOfflineReportFromMadrich={addOfflineReportFromMadrich} />;
                         case "kadar_menu": return <KadarMenu userRole={userRole} userType={userType} isEmergency={isEmergency} setView={setView} handleLogout={handleLogout} />;
-                        case "kadar_form_nochachut": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} accessCodes={accessCodes} students={students} formType="nochachut" setView={setView} />;
-                        case "kadar_form_kibui_orot": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} accessCodes={accessCodes} students={students} formType="kibui_orot" setView={setView} />;
-                        case "kadar_form_boker": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} accessCodes={accessCodes} students={students} formType="boker" setView={setView} />;
-                        case "kadar_form_knisa": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} accessCodes={accessCodes} students={students} formType="knisa" setView={setView} />;
-                        case "kadar_form_emergency": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} accessCodes={accessCodes} students={students} formType="emergency" setView={setView} />;
+                        case "kadar_form_nochachut": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} assignedClassProp={madrichClass} students={students} formType="nochachut" setView={setView} />;
+                        case "kadar_form_kibui_orot": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} assignedClassProp={madrichClass} students={students} formType="kibui_orot" setView={setView} />;
+                        case "kadar_form_boker": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} assignedClassProp={madrichClass} students={students} formType="boker" setView={setView} />;
+                        case "kadar_form_knisa": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} assignedClassProp={madrichClass} students={students} formType="knisa" setView={setView} />;
+                        case "kadar_form_emergency": return <KadarForm userRole={userRole} userType={userType} userCode={userCode} assignedClassProp={madrichClass} students={students} formType="emergency" setView={setView} />;
                         case "kadar_exit_original": return <OriginalExitApp globalStudents={students} userRole={userRole} goBack={() => setView(userType === 'madrich' ? "madrich_dash" : "kadar_menu")} />;
                         case "ab_bayit": return <AbBayitView userRole={userRole} handleLogout={handleLogout} />;
                         case "kabat_dash": return <KabatView userRole={userRole} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
@@ -1881,7 +1987,7 @@
                         case "officer_dash": return <OfficerView userRole={userRole} accessCodes={accessCodes} offlineReports={offlineReports} setOfflineReports={setOfflineReports} cloudReports={cloudReports} handleLogout={handleLogout} />;
                         case "kmz_dash": return <KmzView userRole={userRole} handleLogout={handleLogout} />;
                         case "management_dash": return <ManagementView userRole={userRole} students={students} isEmergency={isEmergency} systemAlerts={systemAlerts} cloudReports={cloudReports} handleLogout={handleLogout} />;
-                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} />;
+                        default: return <LoginView isEmergency={isEmergency} onLoginAttempt={handleLoginAttempt} onEmailLoginAttempt={handleEmailLoginAttempt} onEmailRegisterAttempt={handleEmailRegisterAttempt} />;
                     }
                 } catch (error) {
                     console.error(error);
@@ -1902,7 +2008,7 @@
     </script>
     
     <script>
-        const APP_VERSION = '6.1'; 
+        const APP_VERSION = '6.2'; 
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -1964,5 +2070,3 @@
     </script>
 </body>
 </html>
-
-
